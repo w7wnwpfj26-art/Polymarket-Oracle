@@ -18,14 +18,14 @@ class AutoUpdaterService {
   }
 
   initializeUpdater() {
-    // 配置更新服务器（使用GitLab Releases）
+    // 配置更新服务器（使用GitLab Package Registry）
     const gitlabUrl = process.env.GITLAB_URL || 'http://121.41.231.194:10886';
-    const projectPath = process.env.GITLAB_PROJECT || 'wangqi/aegis-arbitrage';
+    const projectId = process.env.GITLAB_PROJECT_ID || '11';
     
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: `${gitlabUrl}/${projectPath}/-/releases/permalink/latest/downloads`,
-      // GitLab使用通用provider，更新清单从 latest.yml 或 latest-mac.yml 读取
+      url: `${gitlabUrl}/api/v4/projects/${projectId}/packages/generic/aegis-desktop/1.0.0`,
+      // GitLab Package Registry使用通用provider
     });
 
     // 设置更新检查间隔（检2小时检查一次）

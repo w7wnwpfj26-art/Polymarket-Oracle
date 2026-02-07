@@ -84,7 +84,7 @@
     },
     "publish": {
       "provider": "generic",
-      "url": "http://121.41.231.194:10886/wangqi/aegis-arbitrage/-/releases/permalink/latest/downloads"
+      "url": "http://121.41.231.194:10886/api/v4/projects/11/packages/generic/aegis-desktop/1.0.0"
     }
   },
   "devDependencies": {

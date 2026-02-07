@@ -6,6 +6,14 @@ import type { ArbitrageOpportunity, Market, TraditionalOdds, ArbitrageType } fro
 import { PolymarketService } from './polymarket';
 import { OddsApiService } from './oddsApi';
 
+/** Result of Dutch Book check for a single market (used by tests and API). */
+export interface DutchBookResult {
+  hasDutchBook: boolean;
+  impliedProbabilitySum: number;
+  profitMargin: number;
+  confidence?: number;
+}
+
 export class ArbitrageDetector {
   private polymarket: PolymarketService;
   private oddsApi: OddsApiService;
@@ -49,6 +57,65 @@ export class ArbitrageDetector {
 
     // Sort by profit potential
     return opportunities.sort((a, b) => b.expectedProfitPercent - a.expectedProfitPercent);
+  }
+
+  /**
+   * Public Dutch Book check: returns structured result for tests/API.
+   * If sum of implied probabilities < threshold (1 or 1 - feeRate), there's a guaranteed profit.
+   */
+  checkDutchBook(
+    market: Market,
+    options?: { includeFees?: boolean; feeRate?: number }
+  ): DutchBookResult {
+    const sum = market.outcomes.reduce((s, o) => s + o.price, 0);
+    const feeRate = options?.includeFees ? (options.feeRate ?? 0.02) : 0;
+    const threshold = 1 - feeRate;
+    const hasDutchBook = sum < threshold;
+    const grossMargin = hasDutchBook ? (1 - sum) : 0;
+    // When fees included: approximate net margin (fee on each leg)
+    const profitMargin = options?.includeFees && feeRate > 0
+      ? Math.max(0, grossMargin - 2 * feeRate)
+      : grossMargin;
+    const confidence = this.confidenceFromLiquidity(market.liquidity);
+    return {
+      hasDutchBook,
+      impliedProbabilitySum: sum,
+      profitMargin,
+      confidence,
+    };
+  }
+
+  private confidenceFromLiquidity(liquidity: number): number {
+    if (liquidity >= 200_000) return 90;
+    if (liquidity >= 50_000) return 80;
+    if (liquidity >= 10_000) return 70;
+    return 60;
+  }
+
+  /**
+   * Public cross-platform arbitrage check: accepts two markets with outcome prices.
+   * Returns whether arbitrage exists and optional strategy label.
+   */
+  checkCrossPlatformArbitrage(
+    polymarket: Market,
+    traditional: Market
+  ): { hasArbitrage: boolean; strategy?: string } {
+    const polyYes = polymarket.outcomes.find(o => o.side === 'YES' || o.name.toUpperCase() === 'YES');
+    const polyNo = polymarket.outcomes.find(o => o.side === 'NO' || o.name.toUpperCase() === 'NO');
+    const tradYes = traditional.outcomes.find(o => o.side === 'YES' || o.name.toUpperCase() === 'YES');
+    const tradNo = traditional.outcomes.find(o => o.side === 'NO' || o.name.toUpperCase() === 'NO');
+    if (!polyYes || !polyNo || !tradYes || !tradNo) return { hasArbitrage: false };
+    // Poly YES + Trad NO < 1 => buy poly yes, sell (bet) trad no
+    const sumYesNo = polyYes.price + tradNo.price;
+    if (sumYesNo < 0.98) return { hasArbitrage: true, strategy: 'BUY_POLY_YES_SELL_TRAD_NO' };
+    const sumNoYes = polyNo.price + tradYes.price;
+    if (sumNoYes < 0.98) return { hasArbitrage: true, strategy: 'BUY_POLY_NO_SELL_TRAD_YES' };
+    return { hasArbitrage: false };
+  }
+
+  /** Calculate fee amount from notional and rate. */
+  calculateFee(amount: number, feeRate: number): number {
+    return amount * feeRate;
   }
 
   /**
