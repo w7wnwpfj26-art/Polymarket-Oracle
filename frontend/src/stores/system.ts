@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useApi } from '@/composables/useApi';
+import { useWebSocket } from '@/composables/useWebSocket';
 
 interface AgentStatus {
   id: string;
@@ -25,6 +26,7 @@ interface SystemStatus {
 
 export const useSystemStore = defineStore('system', () => {
   const api = useApi();
+  const ws = useWebSocket('ws://localhost:7701'); // WebSocket端口
   
   // State
   const status = ref<SystemStatus | null>(null);
@@ -88,15 +90,61 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
+  // WebSocket消息处理器
+  const handleWsMessage = (message: any) => {
+    switch (message.type) {
+      case 'status':
+        status.value = message.data;
+        lastUpdate.value = new Date();
+        break;
+      case 'heartbeat':
+        // 心跳包，更新最后活动时间
+        if (status.value) {
+          status.value.lastScan = new Date().toISOString();
+        }
+        break;
+      case 'opportunity':
+        // 新机会发现
+        if (status.value) {
+          status.value.opportunitiesFound += 1;
+        }
+        break;
+      case 'trade':
+        // 交易更新
+        if (status.value) {
+          status.value.tradesExecuted += 1;
+          status.value.totalProfit += message.data.profit || 0;
+        }
+        break;
+      case 'error':
+        error.value = message.data?.message || 'Unknown error';
+        break;
+    }
+  };
+
   function initialize() {
+    // 初始获取一次状态
     fetchStatus();
     fetchDashboard();
     
-    // Poll for updates
-    setInterval(() => {
-      fetchStatus();
-      fetchDashboard();
-    }, 5000);
+    // 订阅WebSocket事件
+    ws.subscribe(['status', 'opportunity', 'trade']);
+    
+    // 监听WebSocket消息
+    ws.onMessage(handleWsMessage);
+    
+    // 降级：如果WebSocket连接失败，仍然使用轮询作为后备
+    const pollInterval = setInterval(() => {
+      if (!ws.isConnected.value) {
+        fetchStatus();
+        fetchDashboard();
+      }
+    }, 30000); // 30秒轮询一次作为后备
+    
+    // 清理函数
+    onUnmounted(() => {
+      clearInterval(pollInterval);
+    });
   }
 
   return {

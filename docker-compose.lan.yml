@@ -1,0 +1,41 @@
+# AEGIS套利系统 - 局域网部署配置
+version: '3.8'
+
+services:
+  # 后端API服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aegis-backend
+    ports:
+      - "7700:7700"
+      - "7701:7701"
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/config:/app/config
+    environment:
+      - NODE_ENV=production
+      - PORT=7700
+      - WS_PORT=7701
+    restart: always
+    networks:
+      - aegis-network
+
+  # 前端Web服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aegis-frontend
+    ports:
+      - "3008:80"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - aegis-network
+
+networks:
+  aegis-network:
+    driver: bridge

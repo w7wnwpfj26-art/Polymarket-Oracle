@@ -56,6 +56,24 @@ export class PolymarketService {
     return !!(this.apiKey && this.apiSecret && this.apiPassphrase);
   }
 
+  /**
+   * 获取认证头
+   */
+  private getAuthHeaders(): HeadersInit {
+    if (!this.isConfigured()) {
+      return {
+        'Accept': 'application/json',
+      };
+    }
+    
+    // 简化的认证（实际需要签名）
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'X-API-KEY': this.apiKey!,
+    };
+  }
+
   private async throttle() {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequest;
@@ -81,6 +99,46 @@ export class PolymarketService {
     }
 
     try {
+      // 如果配置了API密钥，使用真实API
+      if (this.isConfigured()) {
+        console.log('[Polymarket] Fetching real data from API');
+        const offset = (params.page - 1) * params.pageSize;
+        const url = new URL(`${GAMMA_API}/events`);
+        url.searchParams.set('limit', params.pageSize.toString());
+        url.searchParams.set('offset', offset.toString());
+        url.searchParams.set('active', 'true');
+        
+        if (params.tag) {
+          url.searchParams.set('tag', params.tag);
+        }
+
+        const response = await fetch(url.toString(), {
+          headers: this.getAuthHeaders()
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Polymarket API error: ${response.status}`);
+        }
+
+        const events: PolymarketEvent[] = await response.json();
+        
+        const markets: Market[] = events.flatMap(event => 
+          event.markets.map(market => this.transformMarket(market, event))
+        );
+
+        // 缓存结果
+        if (markets.length > 0) {
+          await cacheService.setMarketsCache(markets, params.tag);
+        }
+
+        return {
+          data: markets,
+          total: markets.length * 10, // Estimate
+        };
+      }
+      
+      // 否则使用现有的公开API调用
+      console.log('[Polymarket] Using public API endpoint');
       const offset = (params.page - 1) * params.pageSize;
       const url = new URL(`${GAMMA_API}/events`);
       url.searchParams.set('limit', params.pageSize.toString());

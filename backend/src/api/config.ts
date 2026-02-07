@@ -4,11 +4,18 @@
 
 import { Hono } from 'hono';
 import type { SystemConfig, ApiResponse } from '../core/types';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+// 配置文件路径
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CONFIG_FILE = join(__dirname, '../../data/config.json');
 
 export const configRoutes = new Hono();
 
-// Default configuration
-let config: SystemConfig = {
+// 默认配置
+const defaultConfig: SystemConfig = {
   ai: {
     provider: 'openai',
     model: 'gpt-4-turbo-preview',
@@ -83,6 +90,37 @@ let config: SystemConfig = {
   },
 };
 
+// 加载配置（从文件或使用默认值）
+function loadConfig(): SystemConfig {
+  try {
+    if (existsSync(CONFIG_FILE)) {
+      const data = readFileSync(CONFIG_FILE, 'utf-8');
+      const saved = JSON.parse(data);
+      return deepMerge(defaultConfig, saved);
+    }
+  } catch (e) {
+    console.warn('Failed to load config file, using defaults:', e);
+  }
+  return { ...defaultConfig };
+}
+
+// 保存配置到文件
+function saveConfig(cfg: SystemConfig): void {
+  try {
+    const dir = dirname(CONFIG_FILE);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
+    console.log('Config saved to', CONFIG_FILE);
+  } catch (e) {
+    console.error('Failed to save config:', e);
+  }
+}
+
+// 当前配置（启动时从文件加载）
+let config: SystemConfig = loadConfig();
+
 // Get current configuration
 configRoutes.get('/', async (c) => {
   const start = Date.now();
@@ -137,6 +175,9 @@ configRoutes.put('/', async (c) => {
   // Deep merge configuration
   config = deepMerge(config, body);
   
+  // 持久化到文件
+  saveConfig(config);
+  
   return c.json<ApiResponse<{ updated: boolean }>>({
     success: true,
     data: { updated: true },
@@ -170,6 +211,9 @@ configRoutes.patch('/:section', async (c) => {
   }
   
   (config as any)[section] = deepMerge(config[section] as any, body);
+  
+  // 持久化到文件
+  saveConfig(config);
   
   return c.json<ApiResponse<{ updated: boolean; section: string }>>({
     success: true,

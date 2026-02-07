@@ -1,0 +1,108 @@
+{
+  "ai": {
+    "provider": "openai",
+    "model": "gpt-4-turbo-preview",
+    "apiKey": "",
+    "baseUrl": "https://api.openai.com/v1",
+    "temperature": 0.1,
+    "maxTokens": 4096
+  },
+  "strategy": {
+    "riskManagement": {
+      "maxSemanticRisk": 30,
+      "minIrreversibilityScore": 80,
+      "maxSingleTradeAmount": 1000,
+      "maxTotalExposure": 10000,
+      "maxDailyLoss": 500,
+      "stopLossPercentage": 5,
+      "requireUnanimousApproval": true
+    },
+    "arbitrageDetection": {
+      "minProfitMargin": 0.5,
+      "maxSlippage": 2,
+      "includeFees": true,
+      "validityWindowSeconds": 60
+    },
+    "execution": {
+      "autoExecute": false,
+      "dryRunMode": false,
+      "confirmBeforeExecute": true,
+      "executionDelayMs": 1000,
+      "maxRetries": 3
+    }
+  },
+  "agents": {
+    "semanticJudge": {
+      "enabled": true,
+      "useAI": true,
+      "vetoPower": true
+    },
+    "irreversibilityVerifier": {
+      "enabled": true,
+      "useAI": true,
+      "vetoPower": true
+    },
+    "arbitrageConstructor": {
+      "enabled": true,
+      "useAI": false,
+      "vetoPower": true
+    },
+    "nonTradeAgent": {
+      "enabled": true,
+      "useAI": true,
+      "vetoPower": true
+    },
+    "redTeamSimulator": {
+      "enabled": true,
+      "useAI": true,
+      "vetoPower": true
+    },
+    "failSafeMonitor": {
+      "enabled": true,
+      "useAI": false,
+      "vetoPower": true
+    }
+  },
+  "dataSources": {
+    "polymarket": {
+      "enabled": true,
+      "apiBase": "https://gamma-api.polymarket.com",
+      "clobApi": "https://clob.polymarket.com",
+      "rateLimitPerMinute": 60,
+      "walletAddress": "",
+      "privateKey": "",
+      "apiKey": "",
+      "apiSecret": "",
+      "apiPassphrase": ""
+    },
+    "oddsApi": {
+      "enabled": true,
+      "apiKey": "",
+      "apiBase": "https://api.the-odds-api.com/v4"
+    }
+  },
+  "notifications": {
+    "enabled": false,
+    "telegram": {
+      "enabled": false,
+      "botToken": "",
+      "chatId": ""
+    },
+    "discord": {
+      "enabled": false,
+      "webhookUrl": ""
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "headers": {}
+    },
+    "events": {
+      "opportunity": true,
+      "trade": true,
+      "error": true,
+      "system": true,
+      "daily_report": false
+    }
+  }
+}

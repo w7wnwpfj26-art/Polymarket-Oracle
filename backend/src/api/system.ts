@@ -165,12 +165,12 @@ systemRoutes.post('/emergency-halt', async (c) => {
 systemRoutes.get('/dashboard', async (c) => {
   const start = Date.now();
   
-  // Simulated real-time data
+  // 返回真实数据（初始状态为0，随着实际交易增加）
   const stats = {
-    capital: 125000 + Math.random() * 1000,
-    profitToday: 2340 + Math.random() * 100,
-    profitPercent: 1.87 + Math.random() * 0.1,
-    marketsActive: 47 + Math.floor(Math.random() * 5),
+    capital: systemStatus.totalProfit, // 实际利润累计
+    profitToday: 0, // 今日利润（需从数据库计算）
+    profitPercent: 0,
+    marketsActive: systemStatus.marketsScanned,
     opportunitiesFound: systemStatus.opportunitiesFound,
     agentsOnline: systemStatus.agents.filter(a => a.status === 'ONLINE').length,
     riskLevel: 'LOW',

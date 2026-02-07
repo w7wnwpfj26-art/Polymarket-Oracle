@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue';
 import { useApi } from '@/composables/useApi';
+import WalletConnector from '@/components/WalletConnector.vue';
 
 const api = useApi();
 
@@ -152,6 +153,26 @@ onMounted(async () => {
         <input type="checkbox" v-model="config.strategy.riskManagement.requireUnanimousApproval" id="unanimous" class="w-5 h-5" />
         <label for="unanimous">需要所有代理一致同意才能执行交易</label>
       </div>
+    </div>
+
+    <!-- Wallet Connector -->
+    <div class="card">
+      <h2 class="text-lg font-bold mb-4">💼 OKX钱包连接</h2>
+      <div class="mb-4 p-4 bg-cyber-blue/10 border border-cyber-blue/20 rounded-lg">
+        <div class="flex items-start gap-3">
+          <span class="text-cyber-blue text-xl">🔑</span>
+          <div class="text-sm">
+            <p class="font-medium text-cyber-blue">一键授权功能</p>
+            <p class="text-white/60 mt-1">只需首次授权，后续交易无需重复确认签名</p>
+            <ul class="list-disc list-inside mt-2 text-white/50 space-y-1">
+              <li>30分钟内免重复授权</li>
+              <li>自动保存授权状态</li>
+              <li>断开后可快速重连</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <WalletConnector />
     </div>
 
     <!-- Polymarket Config -->
