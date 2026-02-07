@@ -9,7 +9,6 @@ const { dashboardStats, status } = storeToRefs(systemStore);
 const api = useApi();
 
 const opportunities = ref<any[]>([]);
-const recentTrades = ref<any[]>([]);
 
 const formatNumber = (num: number) => {
   return new Intl.NumberFormat('en-US', {

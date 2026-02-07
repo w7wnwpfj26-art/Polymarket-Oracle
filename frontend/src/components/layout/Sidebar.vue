@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 
 const route = useRoute();
-const router = useRouter();
 
 const navItems = [
   { name: '仪表板', path: '/', icon: 'dashboard' },

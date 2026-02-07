@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { computed } from 'vue';
 import { Line } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -150,7 +150,7 @@ const chartOptions = {
           family: 'JetBrains Mono, monospace',
           size: 10,
         },
-        callback: (value: number) => `$${value}`,
+        callback: (value: string | number) => `$${value}`,
       },
     },
   },

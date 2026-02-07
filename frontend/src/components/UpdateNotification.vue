@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 
 const visible = ref(false);
 const status = ref<'checking' | 'available' | 'downloading' | 'downloaded' | 'error' | 'up-to-date'>('checking');

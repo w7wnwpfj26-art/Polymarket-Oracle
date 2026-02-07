@@ -1,1 +1,10 @@
 node_modules
+
+# Build artifacts
+desktop/dist-electron/
+frontend/dist/
+desktop/dist/
+*.dmg
+*.exe
+*.zip.blockmap
+*.dmg.blockmap

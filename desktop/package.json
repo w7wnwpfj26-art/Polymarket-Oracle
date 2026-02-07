@@ -23,15 +23,15 @@
       "output": "dist-electron"
     },
     "files": [
-      "desktop/**/*",
-      "backend/**/*",
-      "!backend/node_modules",
-      "!backend/data/*.db*",
-      "!backend/**/*.log"
+      "electron/**/*",
+      "services/**/*",
+      "updater/**/*",
+      "dist/**/*",
+      "package.json"
     ],
     "extraResources": [
       {
-        "from": "backend/",
+        "from": "../backend/",
         "to": "backend/",
         "filter": [
           "**/*",
@@ -56,38 +56,29 @@
           ]
         }
       ],
-      "icon": "desktop/assets/icon.ico"
+      "icon": "assets/icon.ico"
     },
     "mac": {
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "arch": ["universal"]
         },
         {
           "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
+          "arch": ["universal"]
         }
       ],
-      "icon": "desktop/assets/icon.icns",
       "category": "public.app-category.finance",
-      " hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "desktop/build/entitlements.mac.plist",
-      "entitlementsInherit": "desktop/build/entitlements.mac.plist"
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "desktop/assets/icon.ico",
-      "uninstallerIcon": "desktop/assets/icon.ico",
-      "installerHeaderIcon": "desktop/assets/icon.ico",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },

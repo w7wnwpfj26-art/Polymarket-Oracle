@@ -26,8 +26,8 @@ const toggleAgent = async (id: string, enabled: boolean) => {
 
 const testAgent = async (id: string) => {
   try {
-    const result = await api.post(`/api/agents/${id}/test`, { question: 'Test market?' });
-    alert(`测试结果：${result.decision} (信心：${result.confidence}%)`);
+    const result = await api.post<{ decision: string; confidence: number }>(`/api/agents/${id}/test`, { question: 'Test market?' });
+    alert(`测试结果：${result?.decision} (信心：${result?.confidence}%)`);
   } catch (e) {
     console.error('Test failed:', e);
   }

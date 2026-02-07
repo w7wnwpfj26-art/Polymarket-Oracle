@@ -24,7 +24,6 @@ const api = useApi();
 const history = ref<ExecutionPlan[]>([]);
 const isLoading = ref(true);
 
-const formatNumber = (num: number) => num.toFixed(2);
 const formatPercent = (num: number) => num.toFixed(2) + '%';
 const formatDate = (date: string) => new Date(date).toLocaleString();
 
