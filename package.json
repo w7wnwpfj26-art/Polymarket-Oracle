@@ -1,0 +1,24 @@
+{
+  "name": "aegis-arbitrage-system",
+  "version": "1.0.0",
+  "description": "AEGIS Arbitrage System - Multi-agent trading platform",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:desktop": "cd desktop && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "build:desktop": "node scripts/build-desktop.js",
+    "version:patch": "node scripts/version-bump.js patch",
+    "version:minor": "node scripts/version-bump.js minor",
+    "version:major": "node scripts/version-bump.js major",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
+  },
+  "devDependencies": {
+    "electron": "^40.2.1",
+    "electron-builder": "^26.7.0",
+    "electron-updater": "^6.7.3",
+    "semver": "^7.6.0"
+  }
+}

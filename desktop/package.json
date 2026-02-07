@@ -1,0 +1,108 @@
+{
+  "name": "aegis-desktop",
+  "version": "1.0.0",
+  "description": "AEGIS Arbitrage System Desktop Client",
+  "main": "electron/main-v2.js",
+  "productName": "AEGIS Arbitrage",
+  "author": "AEGIS Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder --mac --win",
+    "dist": "npm run build:all",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.aegis.arbitrage",
+    "productName": "AEGIS Arbitrage",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "desktop/**/*",
+      "backend/**/*",
+      "!backend/node_modules",
+      "!backend/data/*.db*",
+      "!backend/**/*.log"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/",
+        "to": "backend/",
+        "filter": [
+          "**/*",
+          "!node_modules/**/*",
+          "!data/*.db*",
+          "!**/*.log"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "desktop/assets/icon.icns",
+      "category": "public.app-category.finance",
+      " hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "desktop/build/entitlements.mac.plist",
+      "entitlementsInherit": "desktop/build/entitlements.mac.plist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "desktop/assets/icon.ico",
+      "uninstallerIcon": "desktop/assets/icon.ico",
+      "installerHeaderIcon": "desktop/assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "http://121.41.231.194:10886/wangqi/aegis-arbitrage/-/releases/permalink/latest/downloads"
+    }
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
+    "electron-updater": "^6.3.0"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-store": "^11.0.2"
+  }
+}

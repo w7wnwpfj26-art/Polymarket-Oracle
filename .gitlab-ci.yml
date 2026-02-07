@@ -1,0 +1,171 @@
+# AEGIS系统GitLab CI/CD配置
+# 自动构建Windows和macOS客户端，并发布到GitLab Releases
+
+stages:
+  - test
+  - build
+  - release
+
+variables:
+  NODE_VERSION: "20"
+  DESKTOP_DIR: "./new/desktop"
+  BACKEND_DIR: "./new/backend"
+  FRONTEND_DIR: "./new/frontend"
+
+# 缓存node_modules以加速构建
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - node_modules/
+    - .npm/
+
+# ==================== 测试阶段 ====================
+
+test:backend:
+  stage: test
+  image: node:${NODE_VERSION}
+  before_script:
+    - cd ${BACKEND_DIR}
+    - npm ci
+  script:
+    - npm run test
+  only:
+    - main
+    - develop
+    - merge_requests
+
+test:frontend:
+  stage: test
+  image: node:${NODE_VERSION}
+  before_script:
+    - cd ${FRONTEND_DIR}
+    - npm ci
+  script:
+    - npm run build
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# ==================== 构建阶段 ====================
+
+build:windows:
+  stage: build
+  tags:
+    - windows
+    - electron
+  before_script:
+    - cd ${DESKTOP_DIR}
+    - npm ci
+    - cd ../frontend && npm ci && npm run build
+    - cd ../backend && npm ci
+  script:
+    - cd ${DESKTOP_DIR}
+    - npm run build:win
+  artifacts:
+    name: "aegis-windows-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - ${DESKTOP_DIR}/dist-electron/*.exe
+      - ${DESKTOP_DIR}/dist-electron/*.zip
+      - ${DESKTOP_DIR}/dist-electron/latest.yml
+    expire_in: 7 days
+  only:
+    - tags
+    - main
+
+build:mac:
+  stage: build
+  tags:
+    - macos
+    - electron
+  before_script:
+    - cd ${DESKTOP_DIR}
+    - npm ci
+    - cd ../frontend && npm ci && npm run build
+    - cd ../backend && npm ci
+  script:
+    - cd ${DESKTOP_DIR}
+    - npm run build:mac
+  artifacts:
+    name: "aegis-macos-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - ${DESKTOP_DIR}/dist-electron/*.dmg
+      - ${DESKTOP_DIR}/dist-electron/*.zip
+      - ${DESKTOP_DIR}/dist-electron/latest-mac.yml
+    expire_in: 7 days
+  only:
+    - tags
+    - main
+
+# ==================== 发布阶段 ====================
+
+release:gitlab:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - build:windows
+    - build:mac
+  script:
+    - echo "Creating GitLab Release for ${CI_COMMIT_TAG}"
+  release:
+    name: 'AEGIS v${CI_COMMIT_TAG}'
+    description: |
+      ## AEGIS套利系统 v${CI_COMMIT_TAG}
+      
+      ### 更新内容
+      ${CI_COMMIT_MESSAGE}
+      
+      ### 下载安装
+      - **Windows用户**: 下载 `.exe` 安装包
+      - **macOS用户**: 下载 `.dmg` 安装包
+      
+      ### 自动更新
+      已安装的客户端会自动检测到此更新，并提示您升级。
+      
+      ### 数据安全
+      升级不会丢失您的任何配置和历史数据。
+      
+      ---
+      构建时间: ${CI_PIPELINE_CREATED_AT}
+      提交哈希: ${CI_COMMIT_SHORT_SHA}
+    tag_name: '${CI_COMMIT_TAG}'
+    ref: '${CI_COMMIT_SHA}'
+    assets:
+      links:
+        - name: 'Windows安装包'
+          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/AEGIS-Setup-${CI_COMMIT_TAG}.exe'
+          link_type: 'package'
+        - name: 'macOS安装包'
+          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/AEGIS-${CI_COMMIT_TAG}.dmg'
+          link_type: 'package'
+        - name: 'Windows更新文件'
+          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/latest.yml'
+          link_type: 'other'
+        - name: 'macOS更新文件'
+          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/latest-mac.yml'
+          link_type: 'other'
+  only:
+    - tags
+
+# ==================== 手动触发构建 ====================
+
+manual:build-all:
+  stage: build
+  when: manual
+  script:
+    - echo "手动触发完整构建"
+    - cd ${DESKTOP_DIR}
+    - npm ci
+    - cd ../frontend && npm ci && npm run build
+    - cd ../backend && npm ci
+    - cd ${DESKTOP_DIR}
+    - npm run build:all
+  artifacts:
+    paths:
+      - ${DESKTOP_DIR}/dist-electron/
+    expire_in: 30 days
+  only:
+    - main
+    - develop

@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: aegis-backend
+    ports:
+      - "7700:7700"  # HTTP API
+      - "7701:7701"  # WebSocket
+    environment:
+      - NODE_ENV=production
+      - PORT=7700
+      - DATABASE_PATH=/app/data/aegis.db
+      - LOG_LEVEL=info
+      # AI Configuration (set via .env file)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Polymarket (set via .env file)
+      - POLYMARKET_API_KEY=${POLYMARKET_API_KEY:-}
+      # The Odds API
+      - ODDS_API_KEY=${ODDS_API_KEY:-}
+    volumes:
+      - aegis-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Frontend Web App
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: aegis-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  aegis-data:
+    driver: local
+
+networks:
+  default:
+    name: aegis-network

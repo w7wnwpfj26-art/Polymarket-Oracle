@@ -1,0 +1,40 @@
+{
+  "name": "aegis-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npx tsx watch src/index.ts",
+    "start": "npx tsx src/index.ts",
+    "dev:bun": "bun run --watch src/index.ts",
+    "start:bun": "bun run src/index.ts",
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@hono/node-server": "^1.13.0",
+    "better-sqlite3": "^11.5.0",
+    "drizzle-orm": "^0.34.0",
+    "ethers": "^6.16.0",
+    "hono": "^4.6.0",
+    "ioredis": "^5.9.2",
+    "openai": "^4.68.0",
+    "otpauth": "^9.4.1",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.3.0",
+    "playwright": "^1.57.0",
+    "redis": "^4.7.1",
+    "ws": "^8.18.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/bun": "latest",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "drizzle-kit": "^0.26.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

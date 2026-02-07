@@ -1,0 +1,117 @@
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { useApi } from '@/composables/useApi';
+
+interface AgentStatus {
+  id: string;
+  name: string;
+  status: 'ONLINE' | 'OFFLINE' | 'ERROR';
+  lastActivity: string;
+  decisionsToday: number;
+  approvalRate: number;
+}
+
+interface SystemStatus {
+  isRunning: boolean;
+  mode: 'LIVE' | 'DRY_RUN' | 'HALTED';
+  uptime: number;
+  lastScan: string;
+  marketsScanned: number;
+  opportunitiesFound: number;
+  tradesExecuted: number;
+  totalProfit: number;
+  agents: AgentStatus[];
+}
+
+export const useSystemStore = defineStore('system', () => {
+  const api = useApi();
+  
+  // State
+  const status = ref<SystemStatus | null>(null);
+  const isLoading = ref(false);
+  const error = ref<string | null>(null);
+  const lastUpdate = ref<Date | null>(null);
+
+  // Dashboard stats
+  const dashboardStats = ref({
+    capital: 0,
+    profitToday: 0,
+    profitPercent: 0,
+    marketsActive: 0,
+    opportunitiesFound: 0,
+    agentsOnline: 0,
+    riskLevel: 'LOW' as 'LOW' | 'MEDIUM' | 'HIGH',
+  });
+
+  // Computed
+  const isConnected = computed(() => status.value?.isRunning ?? false);
+  const agentCount = computed(() => status.value?.agents.length ?? 0);
+  const onlineAgents = computed(() => 
+    status.value?.agents.filter(a => a.status === 'ONLINE').length ?? 0
+  );
+
+  // Actions
+  async function fetchStatus() {
+    try {
+      const response = await api.get<SystemStatus>('/api/system/status');
+      status.value = response;
+      lastUpdate.value = new Date();
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to fetch status';
+    }
+  }
+
+  async function fetchDashboard() {
+    try {
+      const response = await api.get('/api/system/dashboard');
+      Object.assign(dashboardStats.value, response);
+    } catch (e) {
+      console.error('Failed to fetch dashboard:', e);
+    }
+  }
+
+  async function emergencyHalt() {
+    try {
+      await api.post('/api/system/emergency-halt');
+      await fetchStatus();
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to halt system';
+    }
+  }
+
+  async function setMode(mode: 'LIVE' | 'DRY_RUN') {
+    try {
+      await api.post('/api/system/mode', { mode });
+      await fetchStatus();
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to set mode';
+    }
+  }
+
+  function initialize() {
+    fetchStatus();
+    fetchDashboard();
+    
+    // Poll for updates
+    setInterval(() => {
+      fetchStatus();
+      fetchDashboard();
+    }, 5000);
+  }
+
+  return {
+    status,
+    isLoading,
+    error,
+    lastUpdate,
+    dashboardStats,
+    isConnected,
+    agentCount,
+    onlineAgents,
+    fetchStatus,
+    fetchDashboard,
+    emergencyHalt,
+    setMode,
+    initialize,
+  };
+});
