@@ -10,7 +10,7 @@
 ### **架构层优化**
 
 #### 1. ✅ 全局错误处理中间件
-**文件**: [`backend/src/middleware/errorHandler.ts`](file:///Users/wangqi/Documents/ai/polymarket/new/backend/src/middleware/errorHandler.ts)
+**文件**: `backend/src/middleware/errorHandler.ts`
 
 **特性**:
 - 统一错误响应格式(ApiResponse)
@@ -28,7 +28,7 @@
 ---
 
 #### 2. ✅ 多层缓存系统 (L1 内存 + L2 Redis)
-**文件**: [`backend/src/services/multiLevelCache.ts`](file:///Users/wangqi/Documents/ai/polymarket/new/backend/src/services/multiLevelCache.ts)
+**文件**: `backend/src/services/multiLevelCache.ts`
 
 **特性**:
 - L1: LRU内存缓存 (1000条,毫秒级)
@@ -45,7 +45,7 @@
 ---
 
 #### 3. ✅ WebSocket心跳与自动重连
-**文件**: [`frontend/src/composables/useWebSocket.ts`](file:///Users/wangqi/Documents/ai/polymarket/new/frontend/src/composables/useWebSocket.ts)
+**文件**: `frontend/src/composables/useWebSocket.ts`
 
 **特性**:
 - 30秒心跳检测
@@ -64,14 +64,14 @@
 ### **开源文档体系**
 
 #### 4. ✅ 安全策略文档
-**文件**: [`SECURITY.md`](file:///Users/wangqi/Documents/ai/polymarket/new/SECURITY.md)
+**文件**: `SECURITY.md`
 - 7大安全最佳实践
 - 5类已知安全考量
 - 部署安全检查清单
 - 漏洞报告流程
 
 #### 5. ✅ 变更日志
-**文件**: [`CHANGELOG.md`](file:///Users/wangqi/Documents/ai/polymarket/new/CHANGELOG.md)
+**文件**: `CHANGELOG.md`
 - 语义化版本控制
 - 迁移指南 (1.x → 2.x)
 - 未来路线图 (v2.1 ~ v3.0)
@@ -82,7 +82,7 @@
 - PR模板 (`.github/PULL_REQUEST_TEMPLATE.md`)
 
 #### 7. ✅ CI/CD流水线
-**文件**: [`.github/workflows/ci.yml`](file:///Users/wangqi/Documents/ai/polymarket/new/.github/workflows/ci.yml)
+**文件**: `.github/workflows/ci.yml`
 - 后端测试 + 前端构建
 - Docker镜像构建
 - 安全扫描 (Trivy)
@@ -93,21 +93,21 @@
 ### **开发体验优化**
 
 #### 8. ✅ 启动脚本增强
-**文件**: [`start.sh`](file:///Users/wangqi/Documents/ai/polymarket/new/start.sh)
+**文件**: `start.sh`
 - 智能包管理器检测 (Bun/npm)
 - 后端健康检查等待
 - 优雅关闭清理
 - 彩色日志输出
 
 #### 9. ✅ 环境验证脚本
-**文件**: [`scripts/verify-setup.sh`](file:///Users/wangqi/Documents/ai/polymarket/new/scripts/verify-setup.sh)
+**文件**: `scripts/verify-setup.sh`
 - Node.js版本检查
 - 端口可用性检测
 - 配置文件验证
 - 依赖完整性检查
 
 #### 10. ✅ Demo数据生成器
-**文件**: [`scripts/seed-demo-data.ts`](file:///Users/wangqi/Documents/ai/polymarket/new/scripts/seed-demo-data.ts)
+**文件**: `scripts/seed-demo-data.ts`
 - 10+市场样本
 - 套利机会历史
 - AI代理决策记录
@@ -118,14 +118,14 @@
 ### **运维优化**
 
 #### 11. ✅ Docker Compose增强
-**文件**: [`docker-compose.yml`](file:///Users/wangqi/Documents/ai/polymarket/new/docker-compose.yml)
+**文件**: `docker-compose.yml`
 - Redis服务集成
 - 健康检查优化
 - 服务依赖管理
 - 数据持久化卷
 
 #### 12. ✅ Redis缓存服务
-**文件**: [`backend/src/services/cache.ts`](file:///Users/wangqi/Documents/ai/polymarket/new/backend/src/services/cache.ts)
+**文件**: `backend/src/services/cache.ts`
 - 通用get/set/delete接口
 - 自动重连机制
 - 降级运行支持
