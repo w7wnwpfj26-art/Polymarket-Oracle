@@ -9,6 +9,7 @@ import * as schema from './schema';
 import { sql } from 'drizzle-orm';
 import path from 'path';
 import fs from 'fs';
+import logger from '../utils/logger';
 
 // Database file path
 const DB_PATH = process.env.DATABASE_PATH || './data/aegis.db';
@@ -38,7 +39,7 @@ export function getDb() {
  * Initialize database tables
  */
 export async function initializeDatabase() {
-  console.log('[DB] Initializing database...');
+  logger.db.info('[DB] Initializing database...');
   
   // Create tables manually (since we're not using migrations for simplicity)
   sqlite.exec(`
@@ -146,6 +147,22 @@ export async function initializeDatabase() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS agent_memory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL,
+      opportunity_id TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      confidence INTEGER NOT NULL,
+      was_correct INTEGER,
+      outcome TEXT,
+      profit_loss REAL,
+      market_question TEXT,
+      market_type TEXT,
+      context_json TEXT,
+      created_at TEXT NOT NULL,
+      verified_at TEXT
+    );
+
     -- Create indexes for better query performance
     CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status);
     CREATE INDEX IF NOT EXISTS idx_opportunities_created ON opportunities(created_at);
@@ -154,10 +171,12 @@ export async function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_agent_decisions_plan ON agent_decisions(execution_plan_id);
     CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level);
     CREATE INDEX IF NOT EXISTS idx_system_logs_created ON system_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_agent_memory_agent ON agent_memory(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_memory_opp ON agent_memory(opportunity_id);
   `);
 
-  console.log('[DB] Database initialized successfully');
-  console.log(`[DB] Database path: ${path.resolve(DB_PATH)}`);
+  logger.db.info('[DB] Database initialized successfully');
+  logger.db.info('[DB] Database path: ' + path.resolve(DB_PATH));
 }
 
 /**
@@ -165,7 +184,7 @@ export async function initializeDatabase() {
  */
 export function closeDatabase() {
   sqlite.close();
-  console.log('[DB] Database connection closed');
+  logger.db.info('[DB] Database connection closed');
 }
 
 /**
@@ -187,6 +206,10 @@ export function getDatabaseStats() {
     tables: stats,
     totalRecords: Object.values(stats).reduce((a, b) => a + b, 0),
   };
+}
+
+export function getDatabase() {
+  return db;
 }
 
 export { schema };

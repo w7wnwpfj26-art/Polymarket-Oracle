@@ -28,12 +28,15 @@ import { predictionRoutes } from './api/prediction';
 import { tradeRoutes } from './api/trade';
 import { cacheRoutes } from './api/cache';
 import { healthRoutes } from './api/health';
+import { systemStatusRoutes } from './api/systemStatus';
 import { wsHandler } from './api/websocket';
 import { initializeDatabase, getDatabaseStats } from './db/index';
 import logger from './utils/logger';
 import wsService from './services/websocket';
 import type { ApiResponse, SystemStatus } from './core/types';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, globalRateLimitMiddleware } from './middleware/auth';
+import { globalErrorHandler, requestIdMiddleware, notFoundHandler } from './middleware/errorHandler';
+import { securityHeaders } from './middleware/security';
 
 // ============================================
 // App Configuration
@@ -41,14 +44,28 @@ import { authMiddleware } from './middleware/auth';
 
 const app = new Hono();
 
+// Request ID middleware (must be first)
+app.use('*', requestIdMiddleware());
+
+// Security headers
+app.use('*', securityHeaders({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production',
+  hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
+}));
+
 // Middleware
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:5176', 'http://localhost:3000', 'http://localhost:7700'],
+  origin: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+    : ['http://localhost:5173', 'http://localhost:5176', 'http://localhost:3000', 'http://localhost:7700'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
 }));
 app.use('*', honoLogger());
 app.use('*', prettyJSON());
+
+// 全局限流 - 按 IP 每分钟 200 请求（可通过 RATE_LIMIT_PER_MINUTE 环境变量调整）
+app.use('*', globalRateLimitMiddleware);
 
 // ============================================
 // Health Check & Root
@@ -70,13 +87,15 @@ app.get('/', (c) => {
   });
 });
 
-app.get('/health', (c) => {
+app.get('/health', async (c) => {
   const dbStats = getDatabaseStats();
+  const { cacheService } = await import('./services/cache');
   return c.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     database: dbStats,
+    redis: cacheService.isConnected() ? 'connected' : 'disconnected',
   });
 });
 
@@ -116,6 +135,7 @@ app.route('/api/copy', copyTradingRoutes);
 app.route('/api/prediction', predictionRoutes);
 app.route('/api/trade', tradeRoutes); // 新增交易执行路由
 app.route('/api/cache', cacheRoutes); // 新增缓存管理路由
+app.route('/api/system-status', systemStatusRoutes); // 系统状态仪表板
 
 // ============================================
 // WebSocket for Real-time Updates
@@ -130,24 +150,14 @@ app.get('/ws', wsHandler);
 // Static serving handled by Vite in development
 
 // ============================================
-// Error Handler
+// Error Handlers
 // ============================================
 
-app.onError((err, c) => {
-  console.error(`[ERROR] ${err.message}`, err.stack);
-  return c.json<ApiResponse<null>>({
-    success: false,
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: err.message || 'An unexpected error occurred',
-    },
-    meta: {
-      timestamp: new Date().toISOString(),
-      requestId: crypto.randomUUID(),
-      processingTimeMs: 0,
-    },
-  }, 500);
-});
+// Global error handler
+app.onError(globalErrorHandler());
+
+// 404 Not Found handler
+app.notFound(notFoundHandler());
 
 // ============================================
 // 404 Handler
@@ -207,9 +217,27 @@ console.log(`
 `);
 
 // Start server using @hono/node-server
-serve({
+const server = serve({
   fetch: app.fetch,
   port: Number(PORT),
 });
+
+// Graceful shutdown
+async function shutdown(signal: string) {
+  logger.system.info(`Received ${signal}, shutting down gracefully...`);
+  try {
+    wsService.stop();
+    const { cacheService } = await import('./services/cache');
+    await cacheService.close();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 5000); // Force exit if close hangs
+  } catch (err) {
+    logger.system.error('Shutdown error', { error: (err as Error).message });
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;

@@ -1,111 +1,192 @@
-import { ref, onMounted, onUnmounted } from 'vue';
+/**
+ * WebSocket Composable - 实时数据推送
+ */
+import { ref, readonly, onUnmounted } from 'vue';
 
-interface WSMessage {
-  type: 'status' | 'opportunity' | 'trade' | 'agent' | 'error' | 'heartbeat';
+export type WSMessage = {
+  type: string;
   data: any;
   timestamp: string;
+};
+
+type MessageHandler = (msg: WSMessage) => void;
+
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:7701';
+
+// 全局共享的 WebSocket 实例
+let globalWs: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+let heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const HEARTBEAT_TIMEOUT = 5000; // 5 seconds
+const handlers = new Map<string, Set<MessageHandler>>();
+const isConnected = ref(false);
+const lastMessage = ref<WSMessage | null>(null);
+const reconnectFailed = ref(false);
+const reconnectAttemptsCount = ref(0);
+const lastHeartbeat = ref<number>(0);
+
+function startHeartbeat() {
+  stopHeartbeat();
+  
+  heartbeatTimer = setInterval(() => {
+    if (globalWs?.readyState === WebSocket.OPEN) {
+      // Send ping
+      send('ping', { timestamp: Date.now() });
+      
+      // Set timeout for pong response
+      heartbeatTimeoutTimer = setTimeout(() => {
+        console.warn('[WS] Heartbeat timeout, reconnecting...');
+        globalWs?.close();
+      }, HEARTBEAT_TIMEOUT);
+    }
+  }, HEARTBEAT_INTERVAL);
 }
 
-export function useWebSocket(url: string) {
-  const socket = ref<WebSocket | null>(null);
-  const isConnected = ref(false);
-  const reconnectAttempts = ref(0);
-  const maxReconnectAttempts = 5;
-  const handleMessageCallback = ref<(message: WSMessage) => void>(() => {});
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  if (heartbeatTimeoutTimer) {
+    clearTimeout(heartbeatTimeoutTimer);
+    heartbeatTimeoutTimer = null;
+  }
+}
 
-  const connect = () => {
-    try {
-      socket.value = new WebSocket(url);
-      
-      socket.value.onopen = () => {
-        console.log('[WebSocket] Connected');
-        isConnected.value = true;
-        reconnectAttempts.value = 0;
-      };
+function connect() {
+  if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) {
+    return;
+  }
 
-      socket.value.onclose = () => {
-        console.log('[WebSocket] Disconnected');
-        isConnected.value = false;
-        attemptReconnect();
-      };
+  try {
+    globalWs = new WebSocket(WS_URL);
 
-      socket.value.onerror = (error) => {
-        console.error('[WebSocket] Error:', error);
-        isConnected.value = false;
-      };
+    globalWs.onopen = () => {
+      isConnected.value = true;
+      reconnectAttempts = 0;
+      reconnectFailed.value = false;
+      reconnectAttemptsCount.value = 0;
+      startHeartbeat();
+      console.log('[WS] Connected successfully');
+    };
 
-      socket.value.onmessage = (event) => {
-        try {
-          const message: WSMessage = JSON.parse(event.data);
-          handleMessage(message);
-          handleMessageCallback.value(message);
-        } catch (e) {
-          console.error('[WebSocket] Failed to parse message:', e);
+    globalWs.onmessage = (event) => {
+      try {
+        const msg: WSMessage = JSON.parse(event.data);
+        lastMessage.value = msg;
+
+        // Handle pong response
+        if (msg.type === 'pong') {
+          lastHeartbeat.value = Date.now();
+          if (heartbeatTimeoutTimer) {
+            clearTimeout(heartbeatTimeoutTimer);
+            heartbeatTimeoutTimer = null;
+          }
+          return;
         }
-      };
-    } catch (error) {
-      console.error('[WebSocket] Connection failed:', error);
-      attemptReconnect();
-    }
-  };
 
-  const disconnect = () => {
-    if (socket.value) {
-      socket.value.close();
-      socket.value = null;
-    }
-  };
+        // Dispatch to type-specific handlers
+        const typeHandlers = handlers.get(msg.type);
+        if (typeHandlers) {
+          typeHandlers.forEach(handler => handler(msg));
+        }
 
-  const sendMessage = (message: any) => {
-    if (socket.value?.readyState === WebSocket.OPEN) {
-      socket.value.send(JSON.stringify(message));
-    }
-  };
+        // Dispatch to wildcard handlers
+        const wildcardHandlers = handlers.get('*');
+        if (wildcardHandlers) {
+          wildcardHandlers.forEach(handler => handler(msg));
+        }
+      } catch {
+        // Not JSON, ignore
+      }
+    };
 
-  const subscribe = (channels: string[]) => {
-    sendMessage({
-      type: 'subscribe',
-      channels,
+    globalWs.onclose = () => {
+      isConnected.value = false;
+      globalWs = null;
+      stopHeartbeat();
+      console.log('[WS] Connection closed');
+      scheduleReconnect();
+    };
+
+    globalWs.onerror = (error) => {
+      isConnected.value = false;
+      console.error('[WS] Error occurred:', error);
+    };
+  } catch {
+    scheduleReconnect();
+  }
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    reconnectFailed.value = true;
+    reconnectAttemptsCount.value = reconnectAttempts;
+    return;
+  }
+
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+  reconnectAttempts++;
+  reconnectAttemptsCount.value = reconnectAttempts;
+  reconnectTimer = setTimeout(connect, delay);
+}
+
+function send(type: string, data: any) {
+  if (globalWs?.readyState === WebSocket.OPEN) {
+    globalWs.send(JSON.stringify({ type, data, timestamp: new Date().toISOString() }));
+  }
+}
+
+/**
+ * WebSocket composable
+ * Usage:
+ *   const { isConnected, onMessage, subscribe } = useWebSocket()
+ *   subscribe('arbitrage:update', (msg) => { ... })
+ */
+export function useWebSocket() {
+  // Auto-connect on first use
+  if (!globalWs) connect();
+
+  function subscribe(type: string, handler: MessageHandler) {
+    if (!handlers.has(type)) {
+      handlers.set(type, new Set());
+    }
+    handlers.get(type)!.add(handler);
+
+    // Cleanup on unmount
+    onUnmounted(() => {
+      handlers.get(type)?.delete(handler);
+      if (handlers.get(type)?.size === 0) {
+        handlers.delete(type);
+      }
     });
-  };
+  }
 
-  const attemptReconnect = () => {
-    if (reconnectAttempts.value < maxReconnectAttempts) {
-      reconnectAttempts.value++;
-      console.log(`[WebSocket] Attempting to reconnect (${reconnectAttempts.value}/${maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        connect();
-      }, Math.min(1000 * 2 ** reconnectAttempts.value, 10000)); // 指数退避，最大10秒
-    } else {
-      console.error('[WebSocket] Max reconnection attempts reached');
-    }
-  };
+  function onMessage(handler: MessageHandler) {
+    subscribe('*', handler);
+  }
 
-  const handleMessage = (message: WSMessage) => {
-    // 默认处理函数
-    console.log('[WebSocket] Received:', message.type, message.data);
-  };
-
-  const onMessage = (callback: (message: WSMessage) => void) => {
-    handleMessageCallback.value = callback;
-  };
-
-  onMounted(() => {
+  function retryConnect() {
+    reconnectAttempts = 0;
+    reconnectFailed.value = false;
     connect();
-  });
-
-  onUnmounted(() => {
-    disconnect();
-  });
+  }
 
   return {
-    socket,
     isConnected,
-    connect,
-    disconnect,
-    sendMessage,
+    lastMessage,
+    lastHeartbeat: readonly(lastHeartbeat),
+    reconnectFailed,
+    reconnectAttemptsCount: readonly(reconnectAttemptsCount),
     subscribe,
     onMessage,
+    send,
+    connect,
+    retryConnect,
   };
 }

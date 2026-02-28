@@ -117,6 +117,73 @@ export class CacheService {
   }
 
   /**
+   * 通用 GET 方法
+   */
+  async get(key: string): Promise<any> {
+    if (!this.isConnected()) return null;
+    
+    try {
+      const cached = await this.redis!.get(key);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return cached; // Return as string if not JSON
+        }
+      }
+      return null;
+    } catch (error) {
+      logger.system.error('Cache get error', { key, error });
+      return null;
+    }
+  }
+
+  /**
+   * 通用 SET 方法
+   */
+  async set(key: string, value: any, ttl?: number): Promise<void> {
+    if (!this.isConnected() || !this.redis) return;
+    
+    try {
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+      if (ttl) {
+        await this.redis.setex(key, ttl, stringValue);
+      } else {
+        await this.redis.set(key, stringValue);
+      }
+    } catch (error) {
+      logger.system.error('Cache set error', { key, error });
+    }
+  }
+
+  /**
+   * 通用 DELETE 方法
+   */
+  async delete(key: string): Promise<void> {
+    if (!this.isConnected() || !this.redis) return;
+    
+    try {
+      await this.redis.del(key);
+    } catch (error) {
+      logger.system.error('Cache delete error', { key, error });
+    }
+  }
+
+  /**
+   * 清除所有缓存
+   */
+  async clear(): Promise<void> {
+    if (!this.isConnected() || !this.redis) return;
+    
+    try {
+      await this.redis.flushdb();
+      logger.system.info('Cache cleared');
+    } catch (error) {
+      logger.system.error('Cache clear error', { error });
+    }
+  }
+
+  /**
    * 获取市场列表缓存
    */
   async getCachedMarkets(tag?: string): Promise<Market[] | null> {
@@ -127,7 +194,11 @@ export class CacheService {
       const cached = await this.redis!.get(key);
       
       if (cached) {
-        return JSON.parse(cached);
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return null;
+        }
       }
       return null;
     } catch (error) {
@@ -165,7 +236,11 @@ export class CacheService {
       const cached = await this.redis!.get(key);
       
       if (cached) {
-        return JSON.parse(cached);
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return null;
+        }
       }
       return null;
     } catch (error) {
@@ -208,7 +283,11 @@ export class CacheService {
       const cached = await this.redis!.get(CacheKey.OPPORTUNITIES_ALL);
       
       if (cached) {
-        return JSON.parse(cached);
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return null;
+        }
       }
       return null;
     } catch (error) {
@@ -244,7 +323,11 @@ export class CacheService {
       const cached = await this.redis!.get(CacheKey.BALANCES);
       
       if (cached) {
-        return JSON.parse(cached);
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return null;
+        }
       }
       return null;
     } catch (error) {
@@ -281,7 +364,11 @@ export class CacheService {
       const cached = await this.redis!.get(cacheKey);
       
       if (cached) {
-        return JSON.parse(cached);
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return null;
+        }
       }
       return null;
     } catch (error) {

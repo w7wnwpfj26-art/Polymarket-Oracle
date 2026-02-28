@@ -8,6 +8,8 @@
     "dev:desktop": "cd desktop && npm run dev",
     "build:frontend": "cd frontend && npm run build",
     "build:desktop": "node scripts/build-desktop.js",
+    "seed-demo": "cd backend && npx tsx ../scripts/seed-demo-data.ts",
+    "verify": "bash scripts/verify-setup.sh",
     "version:patch": "node scripts/version-bump.js patch",
     "version:minor": "node scripts/version-bump.js minor",
     "version:major": "node scripts/version-bump.js major",

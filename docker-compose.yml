@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  # Redis Cache (optional but recommended)
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
   # Backend API Server
   backend:
     build:
@@ -15,6 +31,9 @@ services:
       - PORT=7700
       - DATABASE_PATH=/app/data/aegis.db
       - LOG_LEVEL=info
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       # AI Configuration (set via .env file)
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -24,6 +43,9 @@ services:
       - ODDS_API_KEY=${ODDS_API_KEY:-}
     volumes:
       - aegis-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7700/health"]
@@ -45,7 +67,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,6 +75,8 @@ services:
 
 volumes:
   aegis-data:
+    driver: local
+  redis-data:
     driver: local
 
 networks:

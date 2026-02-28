@@ -1,6 +1,41 @@
 # AEGIS Arbitrage System v2.0
 
-> 2026 最新技术栈构建的多代理套利系统
+> 🤖 Multi-Agent AI-Powered Prediction Market Arbitrage System
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.0-brightgreen)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)](https://www.typescriptlang.org/)
+[![Vue 3](https://img.shields.io/badge/Vue-3.5-42b883)](https://vuejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Build Status](https://img.shields.io/badge/build-passing-success)](https://github.com/YOUR_USERNAME/aegis-arbitrage)
+
+[English](#english) | [中文](#中文)
+
+---
+
+## 🌟 Key Features
+
+- 🤖 **6 Specialized AI Agents** - Semantic analysis, risk assessment, adversarial testing
+- 📊 **Multi-Market Coverage** - Polymarket, Kalshi, traditional sportsbooks
+- 🔍 **Dutch Book Detection** - Automated arbitrage opportunity scanning
+- ⚡ **Real-time Updates** - WebSocket-based live data streaming
+- 🛡️ **Risk Management** - Multi-layer validation & unanimous approval system
+- 🎯 **Demo Mode** - Safe testing with simulated data (no real funds needed)
+
+---
+
+## ⚠️ Disclaimer / 免责声明
+
+**This software is for educational and research purposes only.** 本软件仅供教育与研究使用。
+
+- **No warranty**: Use at your own risk. Trading involves financial risk.
+- **No guarantee**: Past performance does not guarantee future results.
+- **Compliance**: Ensure your use complies with local laws and platform ToS.
+- **Secrets**: Never commit API keys, private keys, or passwords. Use `.env` and `config.json` (both gitignored).
+
+---
+
+<a name="中文"></a>
 
 ## 🚀 技术栈
 
@@ -80,6 +115,29 @@ new/
 
 ## 🛠️ 快速开始
 
+### ⚡ 超快速体验 (推荐新用户)
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/YOUR_USERNAME/aegis-arbitrage.git
+cd aegis-arbitrage/new
+
+# 2. 验证环境 (可选但推荐)
+./scripts/verify-setup.sh
+
+# 3. 启动服务 (自动检测 npm/bun)
+./start.sh
+```
+
+就这么简单! 🎉 系统会自动:
+- 安装依赖
+- 等待后端就绪
+- 启动前端界面
+
+访问 [http://localhost:5173](http://localhost:5173) 即可开始使用!
+
+---
+
 ### 方式 1：使用 Node.js (推荐)
 
 ```bash
@@ -116,8 +174,9 @@ bun run dev
 ```bash
 cd new
 
-# 创建 .env 文件
+# 创建 .env 和 config.json（勿提交真实密钥）
 cp .env.example .env
+cp backend/data/config.json.example backend/data/config.json
 # 编辑 .env 填入 API Keys
 
 # 启动服务
@@ -253,7 +312,23 @@ npm run test
 
 ## 📜 License
 
-MIT
+[MIT](LICENSE)
+
+---
+
+<a name="english"></a>
+
+## English Summary
+
+AEGIS is a multi-agent prediction market arbitrage system. Key features:
+- Dutch Book & cross-market arbitrage detection
+- AI agents (semantic judge, irreversibility verifier, etc.)
+- Polymarket, Kalshi, Odds API integration
+- Vue 3 + Hono + SQLite stack
+
+**Quick start**: `cp .env.example .env` → fill API keys → `cd backend && npm run dev` + `cd frontend && npm run dev`
+
+**Docs**: [CONTRIBUTING.md](CONTRIBUTING.md) | [API_KEYS_SETUP.md](API_KEYS_SETUP.md) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 

@@ -1,6 +1,6 @@
 /**
- * 认证中间件
- * JWT Token + API Key 双重认证
+ * 认证中间件 v2
+ * JWT Token + API Key 双重认证 + 密码哈希 + 全局限流
  */
 
 import { Context, Next } from 'hono';
@@ -23,16 +23,70 @@ interface AuthConfig {
   enabled: boolean;
 }
 
+// ============ 密码哈希工具 ============
+
+const SALT_LENGTH = 16;
+const KEY_LENGTH = 64;
+const ITERATIONS = 100_000;
+
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(SALT_LENGTH).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, storedHash: string): boolean {
+  const [salt, hash] = storedHash.split(':');
+  if (!salt || !hash) return false;
+  const computed = crypto.pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, 'sha512').toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(computed, 'hex'));
+}
+
 // ============ 配置 ============
 
+function getJwtSecret(): string {
+  const envSecret = process.env.JWT_SECRET;
+  if (!envSecret || envSecret === 'aegis-secret-key-change-in-production') {
+    // 在没有设置环境变量时，生成一个运行时随机密钥（每次重启会变）
+    const runtimeSecret = crypto.randomBytes(32).toString('hex');
+    logger.system.warn('JWT_SECRET not set in environment. Using random runtime secret. Tokens will not persist across restarts.');
+    return runtimeSecret;
+  }
+  return envSecret;
+}
+
 const config: AuthConfig = {
-  jwtSecret: process.env.JWT_SECRET || 'aegis-secret-key-change-in-production',
-  apiKeys: new Map([
-    ['aegis-demo-key', { name: 'Demo', role: 'readonly', rateLimit: 100 }],
-    ['aegis-admin-key', { name: 'Admin', role: 'admin', rateLimit: 1000 }],
-  ]),
-  enabled: process.env.AUTH_ENABLED === 'true',
+  jwtSecret: getJwtSecret(),
+  apiKeys: new Map<string, { name: string; role: string; rateLimit: number }>(),
+  enabled: process.env.AUTH_ENABLED !== 'false', // 默认启用认证
 };
+
+// 从环境变量加载 API Key（格式: AEGIS_API_KEY_<NAME>=<key>:<role>:<rateLimit>）
+function loadApiKeysFromEnv(): void {
+  for (const [envKey, envVal] of Object.entries(process.env)) {
+    if (envKey.startsWith('AEGIS_API_KEY_') && envVal) {
+      const parts = envVal.split(':');
+      if (parts.length >= 2) {
+        const [apiKey, role, rateStr] = parts;
+        const name = envKey.replace('AEGIS_API_KEY_', '').toLowerCase();
+        config.apiKeys.set(apiKey, {
+          name,
+          role: role || 'readonly',
+          rateLimit: parseInt(rateStr || '100', 10),
+        });
+        logger.system.info(`Loaded API key: ${name} (role=${role})`);
+      }
+    }
+  }
+  // 如果没有任何 API Key，加载默认的（仅开发模式）
+  if (config.apiKeys.size === 0 && process.env.NODE_ENV !== 'production') {
+    const devKey = `aegis-dev-${crypto.randomBytes(8).toString('hex')}`;
+    config.apiKeys.set(devKey, { name: 'dev-key', role: 'admin', rateLimit: 1000 });
+    logger.system.warn(`No API keys configured. Generated dev key: ${devKey}`);
+  }
+}
+
+loadApiKeysFromEnv();
 
 // ============ JWT 工具函数 ============
 
@@ -84,7 +138,13 @@ export function verifyJWT(token: string): JWTPayload | null {
     
     // 验证签名
     const expectedSignature = createHmacSignature(`${headerBase64}.${payloadBase64}`, config.jwtSecret);
-    if (signature !== expectedSignature) return null;
+    
+    // 使用 timingSafeEqual 防止时序攻击
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+      return null;
+    }
 
     // 解析 payload
     const payload: JWTPayload = JSON.parse(base64UrlDecode(payloadBase64));
@@ -126,36 +186,74 @@ export function listApiKeys(): { key: string; name: string; role: string }[] {
   }));
 }
 
-// ============ 速率限制 ============
+// ============ 全局限流 ============
 
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+interface RateLimitEntry { count: number; resetTime: number }
+const globalRateLimitStore = new Map<string, RateLimitEntry>();
 
-function checkRateLimit(identifier: string, limit: number): boolean {
+// 定期清理过期条目
+setInterval(() => {
   const now = Date.now();
-  const windowMs = 60000; // 1 分钟窗口
-  
-  let entry = rateLimitStore.get(identifier);
+  for (const [key, entry] of globalRateLimitStore) {
+    if (entry.resetTime < now) globalRateLimitStore.delete(key);
+  }
+}, 60_000);
+
+function checkRateLimit(identifier: string, limit: number, windowMs = 60_000): { allowed: boolean; remaining: number; resetTime: number } {
+  const now = Date.now();
+  let entry = globalRateLimitStore.get(identifier);
   
   if (!entry || entry.resetTime < now) {
     entry = { count: 0, resetTime: now + windowMs };
-    rateLimitStore.set(identifier, entry);
+    globalRateLimitStore.set(identifier, entry);
   }
   
   entry.count++;
-  
-  return entry.count <= limit;
+  const allowed = entry.count <= limit;
+  return { allowed, remaining: Math.max(0, limit - entry.count), resetTime: entry.resetTime };
 }
 
-// ============ 中间件 ============
+/**
+ * 全局限流中间件
+ * 按 IP 地址限流
+ * 开发环境: 1000次/分钟, 生产环境: 200次/分钟
+ */
+export const globalRateLimitMiddleware = createMiddleware(async (c: Context, next: Next) => {
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    || c.req.header('x-real-ip')
+    || 'unknown';
+
+  // 开发环境或 localhost 放宽限流
+  const isLocal = ip === 'unknown' || ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
+  const defaultLimit = (process.env.NODE_ENV === 'production' && !isLocal) ? 200 : 1000;
+  const limit = parseInt(process.env.RATE_LIMIT_PER_MINUTE || String(defaultLimit), 10);
+  const { allowed, remaining, resetTime } = checkRateLimit(`global:${ip}`, limit);
+
+  c.header('X-RateLimit-Limit', String(limit));
+  c.header('X-RateLimit-Remaining', String(remaining));
+  c.header('X-RateLimit-Reset', String(Math.ceil(resetTime / 1000)));
+
+  if (!allowed) {
+    logger.system.warn('Rate limit exceeded', { ip, limit });
+    return c.json({
+      success: false,
+      error: { code: 'RATE_LIMITED', message: 'Too many requests. Please slow down.' },
+    }, 429);
+  }
+
+  return next();
+});
+
+// ============ 认证中间件 ============
 
 /**
  * 认证中间件
  * 支持 Bearer Token (JWT) 和 API Key
  */
 export const authMiddleware = createMiddleware(async (c: Context, next: Next) => {
-  // 如果认证未启用，直接放行
+  // 如果认证未启用，直接放行（但以 readonly 身份而非 admin）
   if (!config.enabled) {
-    c.set('user', { sub: 'anonymous', role: 'admin' });
+    c.set('user', { sub: 'anonymous', role: 'readonly' });
     return next();
   }
 
@@ -184,12 +282,13 @@ export const authMiddleware = createMiddleware(async (c: Context, next: Next) =>
     const result = validateApiKey(apiKey);
     
     if (result.valid) {
-      // 检查速率限制
+      // 检查 API Key 级别的速率限制
       const keyInfo = config.apiKeys.get(apiKey)!;
-      if (!checkRateLimit(apiKey, keyInfo.rateLimit)) {
+      const rl = checkRateLimit(`apikey:${apiKey}`, keyInfo.rateLimit);
+      if (!rl.allowed) {
         return c.json({
           success: false,
-          error: { code: 'RATE_LIMITED', message: 'Too many requests' },
+          error: { code: 'RATE_LIMITED', message: 'API key rate limit exceeded' },
         }, 429);
       }
       
