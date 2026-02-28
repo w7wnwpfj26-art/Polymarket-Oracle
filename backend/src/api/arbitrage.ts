@@ -6,28 +6,62 @@ import { Hono } from 'hono';
 import type { ArbitrageOpportunity, ApiResponse, ExecutionPlan } from '../core/types';
 import { ArbitrageDetector } from '../services/arbitrageDetector';
 import { OrchestrationService } from '../services/orchestrator';
+import { saveOpportunity, getOpportunities } from '../db/repository';
+import { cacheService } from '../services/cache';
+import { idParamSchema } from './schemas';
 
 export const arbitrageRoutes = new Hono();
 
 const detector = new ArbitrageDetector();
 const orchestrator = new OrchestrationService();
 
-// Store for opportunities (in production, use a database)
-let opportunities: ArbitrageOpportunity[] = [];
+// In-memory cache for recent scan results (merged with DB)
+let recentOpportunities: ArbitrageOpportunity[] = [];
 
-// Get all detected opportunities
+async function getAllOpportunities(): Promise<ArbitrageOpportunity[]> {
+  const dbRows = await getOpportunities(undefined, 100);
+  const fromDb = dbRows.map(row => ({
+    id: row.id,
+    type: row.type as ArbitrageOpportunity['type'],
+    markets: JSON.parse(row.marketsJson),
+    positions: JSON.parse(row.positionsJson),
+    expectedProfit: row.expectedProfit,
+    expectedProfitPercent: row.expectedProfitPercent,
+    worstCaseLoss: row.worstCaseLoss,
+    guaranteedProfit: row.guaranteedProfit ?? 0,
+    confidence: row.confidence,
+    validUntil: row.validUntil ?? undefined,
+    createdAt: row.createdAt,
+  })) as ArbitrageOpportunity[];
+  const merged = [...recentOpportunities];
+  for (const o of fromDb) {
+    if (!merged.some(m => m.id === o.id)) merged.push(o);
+  }
+  merged.sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+  return merged.slice(0, 100);
+}
+
+// Get all detected opportunities (from DB + recent)
 arbitrageRoutes.get('/opportunities', async (c) => {
   const start = Date.now();
-  
-  return c.json<ApiResponse<ArbitrageOpportunity[]>>({
-    success: true,
-    data: opportunities,
+  try {
+    const opportunities = await getAllOpportunities();
+    return c.json<ApiResponse<ArbitrageOpportunity[]>>({
+      success: true,
+      data: opportunities,
     meta: {
       timestamp: new Date().toISOString(),
       requestId: crypto.randomUUID(),
       processingTimeMs: Date.now() - start,
     },
   });
+  } catch (err) {
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'DB_ERROR', message: (err as Error).message },
+      meta: { timestamp: new Date().toISOString(), requestId: crypto.randomUUID(), processingTimeMs: Date.now() - start },
+    }, 500);
+  }
 });
 
 // Scan for new opportunities
@@ -35,8 +69,26 @@ arbitrageRoutes.post('/scan', async (c) => {
   const start = Date.now();
   
   try {
+    const cached = await cacheService.getCachedOpportunities();
+    if (cached && cached.length > 0) {
+      recentOpportunities = [...cached, ...recentOpportunities].slice(0, 100);
+      return c.json<ApiResponse<{ found: number; opportunities: ArbitrageOpportunity[] }>>({
+        success: true,
+        data: { found: cached.length, opportunities: cached },
+        meta: { timestamp: new Date().toISOString(), requestId: crypto.randomUUID(), processingTimeMs: Date.now() - start },
+      });
+    }
+
     const newOpportunities = await detector.scan();
-    opportunities = [...newOpportunities, ...opportunities].slice(0, 100);
+    for (const o of newOpportunities) {
+      try {
+        await saveOpportunity({ ...o, createdAt: o.createdAt || new Date().toISOString() });
+      } catch {
+        // Ignore duplicate key
+      }
+    }
+    await cacheService.setOpportunitiesCache(newOpportunities);
+    recentOpportunities = [...newOpportunities, ...recentOpportunities].slice(0, 100);
     
     return c.json<ApiResponse<{ found: number; opportunities: ArbitrageOpportunity[] }>>({
       success: true,
@@ -69,8 +121,16 @@ arbitrageRoutes.post('/scan', async (c) => {
 // Analyze specific opportunity
 arbitrageRoutes.post('/analyze/:id', async (c) => {
   const start = Date.now();
-  const id = c.req.param('id');
-  
+  const parseResult = idParamSchema.safeParse({ id: c.req.param('id') });
+  if (!parseResult.success) {
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_ID', message: 'Invalid opportunity ID' },
+      meta: { timestamp: new Date().toISOString(), requestId: crypto.randomUUID(), processingTimeMs: Date.now() - start },
+    }, 400);
+  }
+  const { id } = parseResult.data;
+  const opportunities = await getAllOpportunities();
   const opportunity = opportunities.find(o => o.id === id);
   if (!opportunity) {
     return c.json<ApiResponse<null>>({
@@ -118,8 +178,16 @@ arbitrageRoutes.post('/analyze/:id', async (c) => {
 // Execute opportunity (requires all agent approvals)
 arbitrageRoutes.post('/execute/:id', async (c) => {
   const start = Date.now();
-  const id = c.req.param('id');
-  
+  const parseResult = idParamSchema.safeParse({ id: c.req.param('id') });
+  if (!parseResult.success) {
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_ID', message: 'Invalid opportunity ID' },
+      meta: { timestamp: new Date().toISOString(), requestId: crypto.randomUUID(), processingTimeMs: Date.now() - start },
+    }, 400);
+  }
+  const { id } = parseResult.data;
+  const opportunities = await getAllOpportunities();
   const opportunity = opportunities.find(o => o.id === id);
   if (!opportunity) {
     return c.json<ApiResponse<null>>({

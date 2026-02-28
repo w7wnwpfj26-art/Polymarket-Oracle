@@ -3,8 +3,10 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { ApiResponse } from '../core/types';
 import { pricePredictor, PricePrediction } from '../services/pricePredictor';
+import { predictionAISchema, predictionMarketsSchema, priceRecordSchema } from './schemas';
 
 export const predictionRoutes = new Hono();
 
@@ -31,12 +33,19 @@ predictionRoutes.get('/market/:id', async (c) => {
 // AI 高级预测
 predictionRoutes.post('/ai', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    marketId: string;
-    question: string;
-    currentPrice: number;
-    relatedNews?: string[];
-  }>();
+  
+  let body: z.infer<typeof predictionAISchema>;
+  try {
+    body = predictionAISchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   const history = pricePredictor.getPriceHistory(body.marketId);
   
@@ -60,9 +69,19 @@ predictionRoutes.post('/ai', async (c) => {
 // 批量预测
 predictionRoutes.post('/markets', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    markets: { id: string; question: string; price: number }[];
-  }>();
+  
+  let body: z.infer<typeof predictionMarketsSchema>;
+  try {
+    body = predictionMarketsSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   const summary = await pricePredictor.getMarketPredictions(body.markets);
   
@@ -80,13 +99,21 @@ predictionRoutes.post('/markets', async (c) => {
 // 记录价格（用于积累历史数据）
 predictionRoutes.post('/record', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    marketId: string;
-    price: number;
-    volume?: number;
-  }>();
   
-  pricePredictor.recordPrice(body.marketId, body.price, body.volume || 0);
+  let body: z.infer<typeof priceRecordSchema>;
+  try {
+    body = priceRecordSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
+  
+  pricePredictor.recordPrice(body.marketId, body.price, body.volume);
   
   return c.json<ApiResponse<{ recorded: boolean }>>({
     success: true,

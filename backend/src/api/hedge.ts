@@ -3,10 +3,12 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { ApiResponse } from '../core/types';
 import { hedgeDetector, MarketData, HedgeOpportunity } from '../services/hedgeDetector';
 import { bettingSiteRepository } from '../db/bettingSiteRepository';
 import logger from '../utils/logger';
+import { hedgeMarketDataSchema, hedgeScanSchema, hedgeCalculateSchema } from './schemas';
 
 export const hedgeRoutes = new Hono();
 
@@ -108,9 +110,21 @@ hedgeRoutes.post('/traditional/:platform/sync', async (c) => {
 hedgeRoutes.post('/traditional/:platform/markets', async (c) => {
   const start = Date.now();
   const platform = c.req.param('platform');
-  const body = await c.req.json<{ markets: MarketData[] }>();
   
-  hedgeDetector.updateTraditionalData(platform, body.markets);
+  let body: z.infer<typeof hedgeMarketDataSchema>;
+  try {
+    body = hedgeMarketDataSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
+  
+  hedgeDetector.updateTraditionalData(platform, body.markets as MarketData[]);
   
   return c.json<ApiResponse<{ added: number }>>({
     success: true,
@@ -198,12 +212,19 @@ hedgeRoutes.get('/opportunities/:id', async (c) => {
 // 模拟对冲计算
 hedgeRoutes.post('/calculate', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    polymarketPrice: number; // 0-1
-    traditionalOdds: number; // decimal odds
-    investment: number;
-    polySide: 'YES' | 'NO';
-  }>();
+  
+  let body: z.infer<typeof hedgeCalculateSchema>;
+  try {
+    body = hedgeCalculateSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   const { polymarketPrice, traditionalOdds, investment, polySide } = body;
   

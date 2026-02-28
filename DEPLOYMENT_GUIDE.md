@@ -52,7 +52,7 @@ polymarket/new/
 curl -fsSL https://bun.sh/install | bash
 
 # 克隆仓库
-git clone http://121.41.231.194:10886/wangqi/aegis-arbitrage.git
+git clone https://github.com/YOUR_USERNAME/aegis-arbitrage.git
 cd aegis-arbitrage/new
 
 # 安装后端依赖
@@ -71,8 +71,8 @@ cd ../desktop && npm install
 
 ```bash
 # GitLab配置
-GITLAB_URL=http://121.41.231.194:10886
-GITLAB_PROJECT=wangqi/aegis-arbitrage
+GITLAB_URL=https://github.com
+GITLAB_PROJECT=YOUR_USERNAME/aegis-arbitrage
 GITLAB_TOKEN=your-gitlab-token
 
 # 数据加密密钥
@@ -94,12 +94,8 @@ OPENAI_API_KEY=
 ### 1. 创建GitLab仓库
 
 ```bash
-# 登录GitLab
-# URL: http://121.41.231.194:10886
-# 用户名: wangqi
-# 密码: wq123456
-
-# 创建新项目: aegis-arbitrage
+# 在 GitHub 创建新仓库: aegis-arbitrage
+# 或使用 GitHub Actions 替代 GitLab CI
 ```
 
 ### 2. 配置GitLab Runner
@@ -118,8 +114,8 @@ brew install gitlab-runner
 
 # 注册Runner
 gitlab-runner register
-# URL: http://121.41.231.194:10886
-# Token: 从GitLab项目设置中获取
+# URL: 你的 GitLab/GitHub 地址
+# Token: 从项目设置中获取
 # Tags: macos, electron (或 windows, electron)
 ```
 
@@ -265,19 +261,18 @@ graph LR
 
 文件位置：
 ```
-http://121.41.231.194:10886/wangqi/aegis-arbitrage/-/releases/permalink/latest/downloads/latest.yml
+https://github.com/YOUR_USERNAME/aegis-arbitrage/releases/latest/download/latest.yml
 ```
 
 ### 客户端配置
 
 在 `desktop/updater/autoUpdater.js`:
 ```javascript
-const gitlabUrl = process.env.GITLAB_URL || 'http://121.41.231.194:10886';
-const projectPath = process.env.GITLAB_PROJECT || 'wangqi/aegis-arbitrage';
+const updateUrl = process.env.UPDATE_URL || 'https://github.com/YOUR_USERNAME/aegis-arbitrage/releases';
 
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: `${gitlabUrl}/${projectPath}/-/releases/permalink/latest/downloads`
+  url: updateUrl
 });
 ```
 
@@ -438,7 +433,7 @@ dataStore.initialize(process.env.ENCRYPTION_KEY);
 
 **解决**:
 1. 检查网络连接
-2. 确认GitLab服务器可访问：`http://121.41.231.194:10886`
+2. 确认更新服务器可访问（GitHub Releases 或自托管）
 3. 手动下载安装包重新安装
 4. 查看日志：`~/.config/AEGIS Arbitrage/logs/main.log`
 
@@ -531,7 +526,7 @@ setInterval(() => {
 
 ## 技术支持
 
-- **GitLab**: http://121.41.231.194:10886
+- **GitHub**: https://github.com/YOUR_USERNAME/aegis-arbitrage
 - **文档**: 项目Wiki
 - **问题反馈**: GitLab Issues
 

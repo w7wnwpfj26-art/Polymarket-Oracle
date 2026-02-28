@@ -1,16 +1,18 @@
 /**
- * Irreversibility Verifier Agent
+ * Irreversibility Verifier Agent v2
  * Checks if real-world events are truly irreversible
+ * Now uses AI verification alongside rule-based checks
  */
 
 import type { AgentResponse, ArbitrageOpportunity } from '../core/types';
+import aiService from '../services/ai';
+import { getConfig } from '../api/config';
 
 interface AgentContext {
   opportunity: ArbitrageOpportunity;
   previousResponses: AgentResponse[];
 }
 
-// Indicators of reversibility risk
 const REVERSIBILITY_INDICATORS = [
   'pending', 'tentative', 'preliminary', 'unofficial',
   'unconfirmed', 'alleged', 'reported', 'expected',
@@ -25,19 +27,21 @@ const IRREVERSIBILITY_INDICATORS = [
 
 export class IrreversibilityVerifier {
   id = 'irreversibility';
-  name = '不可逆驗證器';
+  name = 'Irreversibility Verifier';
 
   async run(context: AgentContext): Promise<AgentResponse> {
     const startTime = Date.now();
     const { opportunity } = context;
     const market = opportunity.markets.polymarket;
+    const config = getConfig();
 
     const warnings: string[] = [];
-    let irreversibilityScore = 50; // Start neutral
+    let irreversibilityScore = 50;
 
     const textToAnalyze = `${market.question} ${market.description}`.toLowerCase();
 
-    // Check for reversibility indicators (decrease score)
+    // ========== Rule-based checks ==========
+
     for (const indicator of REVERSIBILITY_INDICATORS) {
       if (textToAnalyze.includes(indicator)) {
         irreversibilityScore -= 10;
@@ -45,14 +49,12 @@ export class IrreversibilityVerifier {
       }
     }
 
-    // Check for irreversibility indicators (increase score)
     for (const indicator of IRREVERSIBILITY_INDICATORS) {
       if (textToAnalyze.includes(indicator)) {
         irreversibilityScore += 10;
       }
     }
 
-    // Check end date (past = more likely irreversible)
     const endDate = new Date(market.endDate);
     const now = new Date();
     if (endDate < now) {
@@ -67,21 +69,34 @@ export class IrreversibilityVerifier {
       }
     }
 
-    // Check for future-looking language
     if (/\b(will|would|going to|plan to|intend to)\b/i.test(textToAnalyze)) {
       irreversibilityScore -= 20;
       warnings.push('Contains future-looking language');
     }
 
-    // Check for past tense (good indicator)
     if (/\b(was|were|has been|have been|had)\b/i.test(textToAnalyze)) {
       irreversibilityScore += 10;
     }
 
-    // Clamp score
+    // ========== AI-enhanced verification ==========
+    const agentConfig = config.agents?.irreversibilityVerifier;
+    if (agentConfig?.useAI && config.ai?.apiKey) {
+      try {
+        const aiResult = await this.verifyWithAI(market.question, market.description);
+        if (aiResult) {
+          // Blend AI score with rule-based score
+          irreversibilityScore = Math.round(irreversibilityScore * 0.5 + aiResult.score * 0.5);
+          if (aiResult.warnings?.length) {
+            warnings.push(...aiResult.warnings.map((w: string) => `[AI] ${w}`));
+          }
+        }
+      } catch (error) {
+        warnings.push('[AI] AI verification failed, using rule-based only');
+      }
+    }
+
     irreversibilityScore = Math.max(0, Math.min(100, irreversibilityScore));
 
-    // Determine decision
     let decision: 'APPROVE' | 'REJECT' | 'ABSTAIN';
     if (irreversibilityScore >= 80) {
       decision = 'APPROVE';
@@ -110,5 +125,31 @@ export class IrreversibilityVerifier {
       timestamp: new Date().toISOString(),
       processingTimeMs: Date.now() - startTime,
     };
+  }
+
+  private async verifyWithAI(question: string, description: string): Promise<{
+    score: number;
+    warnings: string[];
+    reasoning: string;
+  } | null> {
+    const prompt = `As an event verification specialist, assess whether this prediction market event is irreversible:
+
+Question: ${question}
+Description: ${description}
+
+Evaluate:
+1. Has the event already occurred and been confirmed by multiple sources?
+2. Could the outcome be reversed, appealed, or changed?
+3. Are there any pending legal/regulatory actions that could affect the outcome?
+4. How definitive is the language used?
+
+Return JSON: { "score": <0-100, higher=more irreversible>, "warnings": ["..."], "reasoning": "..." }`;
+
+    const response = await aiService.chat([
+      { role: 'system', content: 'You are an event verification specialist for prediction markets. Return only valid JSON.' },
+      { role: 'user', content: prompt },
+    ], { jsonMode: true });
+
+    return JSON.parse(response.content);
   }
 }

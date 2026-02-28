@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import type { SystemStatus, ApiResponse } from '../core/types';
+import { getDatabaseStats } from '../db/index';
 
 export const systemRoutes = new Hono();
 
@@ -165,16 +166,22 @@ systemRoutes.post('/emergency-halt', async (c) => {
 systemRoutes.get('/dashboard', async (c) => {
   const start = Date.now();
   
-  // 返回真实数据（初始状态为0，随着实际交易增加）
+  // Aggregate real data from runtime + database
+  const dbStats = getDatabaseStats();
   const stats = {
-    capital: systemStatus.totalProfit, // 实际利润累计
-    profitToday: 0, // 今日利润（需从数据库计算）
+    capital: systemStatus.totalProfit,
+    profitToday: 0,
     profitPercent: 0,
     marketsActive: systemStatus.marketsScanned,
     opportunitiesFound: systemStatus.opportunitiesFound,
     agentsOnline: systemStatus.agents.filter(a => a.status === 'ONLINE').length,
-    riskLevel: 'LOW',
+    riskLevel: systemStatus.mode === 'HALTED' ? 'HIGH' : systemStatus.mode === 'LIVE' ? 'MEDIUM' : 'LOW',
     lastUpdate: new Date().toISOString(),
+    database: {
+      totalRecords: dbStats.totalRecords,
+      trades: dbStats.tables['trades'] || 0,
+      opportunities: dbStats.tables['opportunities'] || 0,
+    },
   };
   
   return c.json<ApiResponse<typeof stats>>({

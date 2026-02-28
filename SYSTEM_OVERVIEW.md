@@ -449,7 +449,7 @@ CPU使用率: < 30%
 
 ## 📞 联系方式
 
-- **GitLab**: http://121.41.231.194:10886/wangqi/aegis-arbitrage
+- **GitHub**: https://github.com/YOUR_USERNAME/aegis-arbitrage
 - **文档**: 项目Wiki
 - **问题反馈**: GitLab Issues
 

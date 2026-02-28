@@ -9,6 +9,8 @@ const { dashboardStats, status } = storeToRefs(systemStore);
 const api = useApi();
 
 const opportunities = ref<any[]>([]);
+const oppLoading = ref(true);
+const oppError = ref<string | null>(null);
 
 const formatNumber = (num: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -21,14 +23,20 @@ const formatPercent = (num: number) => {
   return num.toFixed(2) + '%';
 };
 
-onMounted(async () => {
+async function fetchOpportunities() {
+  oppLoading.value = true;
+  oppError.value = null;
   try {
     const opps = await api.get<any[]>('/api/arbitrage/opportunities');
     opportunities.value = opps || [];
   } catch (e) {
-    console.error('Failed to fetch opportunities:', e);
+    oppError.value = (e as Error).message || '加载失败';
+  } finally {
+    oppLoading.value = false;
   }
-});
+}
+
+onMounted(fetchOpportunities);
 </script>
 
 <template>
@@ -115,7 +123,20 @@ onMounted(async () => {
           </span>
         </div>
         
-        <div v-if="opportunities.length === 0" class="text-center py-12 text-white/40">
+        <div v-if="oppLoading" class="text-center py-12 text-white/40">
+          <svg class="animate-spin h-10 w-10 mx-auto mb-4 text-cyber-neon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p>加载中...</p>
+        </div>
+        <div v-else-if="oppError" class="text-center py-12">
+          <p class="text-cyber-red mb-2">{{ oppError }}</p>
+          <button @click="fetchOpportunities" class="px-4 py-2 rounded bg-cyber-neon/20 text-cyber-neon hover:bg-cyber-neon/30 transition">
+            重试
+          </button>
+        </div>
+        <div v-else-if="opportunities.length === 0" class="text-center py-12 text-white/40">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="mx-auto mb-4 opacity-50">
             <circle cx="11" cy="11" r="8"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>

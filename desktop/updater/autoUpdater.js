@@ -18,14 +18,12 @@ class AutoUpdaterService {
   }
 
   initializeUpdater() {
-    // 配置更新服务器（使用GitLab Package Registry）
-    const gitlabUrl = process.env.GITLAB_URL || 'http://121.41.231.194:10886';
-    const projectId = process.env.GITLAB_PROJECT_ID || '11';
+    // 配置更新服务器（GitHub Releases 或自托管）
+    const updateBaseUrl = process.env.UPDATE_URL || 'https://github.com/YOUR_USERNAME/aegis-arbitrage/releases';
     
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: `${gitlabUrl}/api/v4/projects/${projectId}/packages/generic/aegis-desktop/1.0.0`,
-      // GitLab Package Registry使用通用provider
+      url: updateBaseUrl
     });
 
     // 设置更新检查间隔（检2小时检查一次）

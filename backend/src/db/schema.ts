@@ -116,7 +116,26 @@ export const dailyStats = sqliteTable('daily_stats', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// Agent 记忆/学习表
+export const agentMemory = sqliteTable('agent_memory', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  agentId: text('agent_id').notNull(),
+  opportunityId: text('opportunity_id').notNull(),
+  decision: text('decision').notNull(),          // APPROVE, REJECT, ABSTAIN
+  confidence: integer('confidence').notNull(),
+  wasCorrect: integer('was_correct', { mode: 'boolean' }), // 事后验证
+  outcome: text('outcome'),                       // 实际结果描述
+  profitLoss: real('profit_loss'),                // 实际盈亏
+  marketQuestion: text('market_question'),
+  marketType: text('market_type'),
+  contextJson: text('context_json'),              // 决策上下文 JSON
+  createdAt: text('created_at').notNull(),
+  verifiedAt: text('verified_at'),
+});
+
 // 类型导出
+export type AgentMemoryRecord = typeof agentMemory.$inferSelect;
+export type NewAgentMemoryRecord = typeof agentMemory.$inferInsert;
 export type Market = typeof markets.$inferSelect;
 export type NewMarket = typeof markets.$inferInsert;
 export type Opportunity = typeof opportunities.$inferSelect;

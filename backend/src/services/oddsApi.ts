@@ -3,6 +3,7 @@
  */
 
 import type { TraditionalOdds } from '../core/types';
+import logger from '../utils/logger';
 
 const ODDS_API_BASE = 'https://api.the-odds-api.com/v4';
 
@@ -15,7 +16,7 @@ export class OddsApiService {
 
   async getOdds(sport: string): Promise<TraditionalOdds[]> {
     if (!this.apiKey) {
-      console.warn('[OddsAPI] No API key configured, using mock data');
+      logger.system.warn('Odds API: no key configured, using mock data');
       return this.getMockOdds(sport);
     }
 
@@ -35,21 +36,15 @@ export class OddsApiService {
       const data = await response.json();
       return this.transformOdds(data);
     } catch (error) {
-      console.error('[OddsAPI] Failed to fetch odds:', error);
+      logger.system.error('Odds API fetch failed', { sport, error: (error as Error).message });
       return this.getMockOdds(sport);
     }
   }
 
   async getAllOdds(): Promise<TraditionalOdds[]> {
     const sports = ['americanfootball_nfl', 'basketball_nba', 'soccer_epl'];
-    const results: TraditionalOdds[] = [];
-
-    for (const sport of sports) {
-      const odds = await this.getOdds(sport);
-      results.push(...odds);
-    }
-
-    return results;
+    const results = await Promise.all(sports.map(sport => this.getOdds(sport)));
+    return results.flat();
   }
 
   private transformOdds(data: any[]): TraditionalOdds[] {

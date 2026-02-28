@@ -3,8 +3,10 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { ApiResponse } from '../core/types';
 import { telegramBot } from '../services/telegramBot';
+import { telegramConfigureSchema, telegramTestSchema, telegramPushSchema } from './schemas';
 
 export const telegramRoutes = new Hono();
 
@@ -27,11 +29,19 @@ telegramRoutes.get('/status', async (c) => {
 // 配置 Bot
 telegramRoutes.post('/configure', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    botToken: string;
-    chatId: string;
-    enabled: boolean;
-  }>();
+  
+  let body: z.infer<typeof telegramConfigureSchema>;
+  try {
+    body = telegramConfigureSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   telegramBot.configure(body);
   
@@ -86,17 +96,19 @@ telegramRoutes.post('/test', async (c) => {
 // 手动推送套利机会
 telegramRoutes.post('/push-opportunity', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    id: string;
-    type: string;
-    question: string;
-    expectedProfit: number;
-    expectedProfitPercent: number;
-    worstCaseLoss: number;
-    platforms: any;
-    confidence: number;
-    validUntil: string;
-  }>();
+  
+  let body: z.infer<typeof telegramPushSchema>;
+  try {
+    body = telegramPushSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   const success = await telegramBot.sendArbitrageAlert(body);
   

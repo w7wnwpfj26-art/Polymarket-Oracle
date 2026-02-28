@@ -5,6 +5,7 @@
 import type { ArbitrageOpportunity, Market, TraditionalOdds, ArbitrageType } from '../core/types';
 import { PolymarketService } from './polymarket';
 import { OddsApiService } from './oddsApi';
+import logger from '../utils/logger';
 
 /** Result of Dutch Book check for a single market (used by tests and API). */
 export interface DutchBookResult {
@@ -52,7 +53,7 @@ export class ArbitrageDetector {
       }
 
     } catch (error) {
-      console.error('[ArbitrageDetector] Scan failed:', error);
+      logger.system.error('Arbitrage scan failed', { error: (error as Error).message });
     }
 
     // Sort by profit potential

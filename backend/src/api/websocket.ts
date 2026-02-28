@@ -3,6 +3,7 @@
  */
 
 import type { Context } from 'hono';
+import logger from '../utils/logger';
 
 // Connected clients
 const clients = new Set<WebSocket>();
@@ -97,7 +98,7 @@ export function broadcastError(error: unknown) {
 export const websocket = {
   open(ws: WebSocket) {
     clients.add(ws);
-    console.log(`[WS] Client connected. Total: ${clients.size}`);
+    logger.websocket.info('[WS] Client connected', { totalClients: clients.size });
     
     // Send welcome message
     ws.send(JSON.stringify({
@@ -122,20 +123,20 @@ export const websocket = {
       
       // Handle subscription requests
       if (data.type === 'subscribe') {
-        console.log(`[WS] Client subscribed to: ${data.channels?.join(', ')}`);
+        logger.websocket.info('[WS] Client subscribed', { channels: data.channels });
       }
     } catch (error) {
-      console.error('[WS] Failed to parse message:', error);
+      logger.websocket.error('[WS] Failed to parse message', { error });
     }
   },
   
   close(ws: WebSocket) {
     clients.delete(ws);
-    console.log(`[WS] Client disconnected. Total: ${clients.size}`);
+    logger.websocket.info('[WS] Client disconnected', { totalClients: clients.size });
   },
   
   error(ws: WebSocket, error: Error) {
-    console.error('[WS] Error:', error);
+    logger.websocket.error('[WS] Error occurred', { error });
     clients.delete(ws);
   },
 };

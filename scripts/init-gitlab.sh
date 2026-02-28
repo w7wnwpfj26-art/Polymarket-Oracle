@@ -30,14 +30,13 @@ warning() {
     echo -e "${YELLOW}⚠️  $1${NC}"
 }
 
-# GitLab配置
-GITLAB_URL="http://121.41.231.194:10886"
-GITLAB_USER="wangqi"
+# GitHub 配置（开源后使用 GitHub）
+GITHUB_USER="${GITHUB_USER:-YOUR_USERNAME}"
 PROJECT_NAME="aegis-arbitrage"
-REMOTE_URL="${GITLAB_URL}/${GITLAB_USER}/${PROJECT_NAME}.git"
+REMOTE_URL="https://github.com/${GITHUB_USER}/${PROJECT_NAME}.git"
 
 echo "========================================="
-echo "   AEGIS GitLab 初始化脚本"
+echo "   AEGIS GitHub 初始化脚本"
 echo "========================================="
 echo ""
 
@@ -59,21 +58,21 @@ fi
 if git remote get-url origin &> /dev/null; then
     CURRENT_REMOTE=$(git remote get-url origin)
     warning "已存在remote origin: $CURRENT_REMOTE"
-    read -p "是否要替换为GitLab remote? (y/n) " -n 1 -r
+    read -p "是否要替换为 GitHub remote? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         git remote remove origin
         info "已删除旧的remote"
     else
-        info "保持现有remote"
+        info "保持现有 remote"
         exit 0
     fi
 fi
 
-# 添加GitLab remote
-info "添加GitLab remote..."
+# 添加 GitHub remote
+info "添加 GitHub remote..."
 git remote add origin "$REMOTE_URL"
-success "GitLab remote已添加: $REMOTE_URL"
+success "GitHub remote已添加: $REMOTE_URL"
 
 # 检查是否有未提交的更改
 if [[ -n $(git status -s) ]]; then
@@ -96,8 +95,8 @@ if ! git log &> /dev/null; then
     error "没有commits可推送，请先创建初始提交"
 fi
 
-# 推送到GitLab
-info "推送到GitLab..."
+# 推送到 GitHub
+info "推送到 GitHub..."
 echo ""
 warning "即将推送到: $REMOTE_URL"
 warning "请确保已在GitLab创建项目: ${PROJECT_NAME}"
@@ -108,13 +107,13 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     # 尝试推送
     if git push -u origin main 2>/dev/null; then
-        success "代码已推送到GitLab"
+        success "代码已推送到 GitHub"
     elif git push -u origin master 2>/dev/null; then
-        success "代码已推送到GitLab (master分支)"
+        success "代码已推送到 GitHub (master分支)"
     else
         error "推送失败，请检查：
-1. GitLab项目是否已创建
-2. 用户名密码是否正确
+1. GitHub 仓库是否已创建
+2. 认证配置是否正确（SSH 或 HTTPS token）
 3. 网络连接是否正常
 
 手动推送命令：
@@ -127,16 +126,14 @@ fi
 
 echo ""
 echo "========================================="
-success "GitLab初始化完成！"
+success "GitHub 初始化完成！"
 echo "========================================="
 echo ""
 info "下一步："
-echo "1. 访问项目: ${GITLAB_URL}/${GITLAB_USER}/${PROJECT_NAME}"
-echo "2. 配置GitLab Runner（Settings → CI/CD → Runners）"
-echo "3. 设置CI/CD环境变量（Settings → CI/CD → Variables）："
-echo "   - GITLAB_TOKEN"
-echo "   - ENCRYPTION_KEY"
-echo "4. 推送tag触发首次构建："
+echo "1. 访问项目: https://github.com/${GITHUB_USER}/${PROJECT_NAME}"
+echo "2. 配置 GitHub Actions（.github/workflows/）"
+echo "3. 设置 Secrets（Settings → Secrets and variables → Actions）"
+echo "4. 推送 tag 触发首次构建："
 echo "   npm run version:patch"
 echo "   git push origin --tags"
 echo ""

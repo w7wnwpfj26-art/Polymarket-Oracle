@@ -3,8 +3,10 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { ApiResponse } from '../core/types';
 import { sentimentAnalyzer, MarketSentiment } from '../services/sentimentAnalyzer';
+import { sentimentMarketsSchema, sentimentAnalyzeSchema, sentimentConfigureSchema } from './schemas';
 
 export const sentimentRoutes = new Hono();
 
@@ -30,7 +32,19 @@ sentimentRoutes.get('/market/:id', async (c) => {
 // 批量分析市场情绪
 sentimentRoutes.post('/markets', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{ markets: { id: string; question: string }[] }>();
+  
+  let body: z.infer<typeof sentimentMarketsSchema>;
+  try {
+    body = sentimentMarketsSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   const results = await sentimentAnalyzer.analyzeMarkets(body.markets);
   
@@ -48,7 +62,19 @@ sentimentRoutes.post('/markets', async (c) => {
 // 分析文本情绪
 sentimentRoutes.post('/analyze', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{ text: string }>();
+  
+  let body: z.infer<typeof sentimentAnalyzeSchema>;
+  try {
+    body = sentimentAnalyzeSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   const result = await sentimentAnalyzer.analyzeTextWithAI(body.text);
   
@@ -83,12 +109,19 @@ sentimentRoutes.get('/trending', async (c) => {
 // 配置情绪分析服务
 sentimentRoutes.post('/configure', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{
-    twitterApiKey?: string;
-    redditClientId?: string;
-    redditClientSecret?: string;
-    newsApiKey?: string;
-  }>();
+  
+  let body: z.infer<typeof sentimentConfigureSchema>;
+  try {
+    body = sentimentConfigureSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({ success: false, error: { code: 'INVALID_REQUEST', message: 'Invalid request body' } }, 400);
+  }
   
   sentimentAnalyzer.configure(body);
   

@@ -1,8 +1,10 @@
 /**
- * 认证 API 路由
+ * 认证 API 路由 v2
+ * 支持密码哈希、用户注册、登录
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { ApiResponse } from '../core/types';
 import { 
   signJWT, 
@@ -14,36 +16,139 @@ import {
   isAuthEnabled,
   authMiddleware,
   requireRole,
+  hashPassword,
+  verifyPassword,
 } from '../middleware/auth';
 
 export const authRoutes = new Hono();
 
-// 用户数据库（演示用，生产环境应使用真实数据库）
-const users = new Map<string, { password: string; role: 'admin' | 'user' | 'readonly' }>([
-  ['admin', { password: 'admin123', role: 'admin' }],
-  ['user', { password: 'user123', role: 'user' }],
-]);
+// ============ Zod 校验 ============
+
+const loginSchema = z.object({
+  username: z.string().min(2).max(64),
+  password: z.string().min(6).max(128),
+});
+
+const registerSchema = z.object({
+  username: z.string().min(2).max(64).regex(/^[a-zA-Z0-9_-]+$/, 'Username must be alphanumeric'),
+  password: z.string().min(8).max(128),
+  role: z.enum(['admin', 'user', 'readonly']).default('user'),
+});
+
+const apiKeyCreateSchema = z.object({
+  name: z.string().min(1).max(64),
+  role: z.enum(['admin', 'user', 'readonly']),
+  rateLimit: z.number().int().min(1).max(10000).optional().default(100),
+});
+
+const configureAuthSchema = z.object({
+  enabled: z.boolean().optional(),
+  jwtSecret: z.string().min(16).optional(),
+});
+
+// ============ 用户存储（内存 + 密码哈希） ============
+// 生产环境应迁移至数据库
+
+interface UserRecord {
+  passwordHash: string;
+  role: 'admin' | 'user' | 'readonly';
+  createdAt: string;
+}
+
+const users = new Map<string, UserRecord>();
+
+// 初始化默认管理员（密码从环境变量读取）
+function initDefaultUsers() {
+  const adminPassword = process.env.AEGIS_ADMIN_PASSWORD || 'AegisAdmin@2026';
+  users.set('admin', {
+    passwordHash: hashPassword(adminPassword),
+    role: 'admin',
+    createdAt: new Date().toISOString(),
+  });
+}
+initDefaultUsers();
+
+// ============ 路由 ============
 
 // 登录获取 JWT
 authRoutes.post('/login', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{ username: string; password: string }>();
+  
+  let body: z.infer<typeof loginSchema>;
+  try {
+    body = loginSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid request body' },
+    }, 400);
+  }
   
   const user = users.get(body.username);
   
-  if (!user || user.password !== body.password) {
+  if (!user || !verifyPassword(body.password, user.passwordHash)) {
     return c.json<ApiResponse<null>>({
       success: false,
-      error: { code: 'INVALID_CREDENTIALS', message: '用户名或密码错误' },
-      meta: { timestamp: new Date().toISOString() },
+      error: { code: 'INVALID_CREDENTIALS', message: 'Invalid username or password' },
+      meta: { timestamp: new Date().toISOString(), requestId: crypto.randomUUID(), processingTimeMs: Date.now() - start },
     }, 401);
   }
   
   const token = signJWT({ sub: body.username, role: user.role });
   
-  return c.json<ApiResponse<{ token: string; expiresIn: number }>>({
+  return c.json<ApiResponse<{ token: string; expiresIn: number; role: string }>>({
     success: true,
-    data: { token, expiresIn: 86400 },
+    data: { token, expiresIn: 86400, role: user.role },
+    meta: {
+      timestamp: new Date().toISOString(),
+      requestId: crypto.randomUUID(),
+      processingTimeMs: Date.now() - start,
+    },
+  });
+});
+
+// 注册新用户（仅管理员）
+authRoutes.post('/register', authMiddleware, requireRole('admin'), async (c) => {
+  const start = Date.now();
+  
+  let body: z.infer<typeof registerSchema>;
+  try {
+    body = registerSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid request body' },
+    }, 400);
+  }
+  
+  if (users.has(body.username)) {
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'USER_EXISTS', message: 'Username already taken' },
+    }, 409);
+  }
+  
+  users.set(body.username, {
+    passwordHash: hashPassword(body.password),
+    role: body.role,
+    createdAt: new Date().toISOString(),
+  });
+  
+  return c.json<ApiResponse<{ username: string; role: string }>>({
+    success: true,
+    data: { username: body.username, role: body.role },
     meta: {
       timestamp: new Date().toISOString(),
       requestId: crypto.randomUUID(),
@@ -60,8 +165,7 @@ authRoutes.post('/refresh', authMiddleware, async (c) => {
   if (!user) {
     return c.json<ApiResponse<null>>({
       success: false,
-      error: { code: 'UNAUTHORIZED', message: '未登录' },
-      meta: { timestamp: new Date().toISOString() },
+      error: { code: 'UNAUTHORIZED', message: 'Not authenticated' },
     }, 401);
   }
   
@@ -112,7 +216,22 @@ authRoutes.get('/status', async (c) => {
 // 配置认证
 authRoutes.post('/configure', authMiddleware, requireRole('admin'), async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{ enabled?: boolean; jwtSecret?: string }>();
+  
+  let body: z.infer<typeof configureAuthSchema>;
+  try {
+    body = configureAuthSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid request body' },
+    }, 400);
+  }
   
   configureAuth(body);
   
@@ -148,12 +267,27 @@ authRoutes.get('/api-keys', authMiddleware, requireRole('admin'), async (c) => {
 // 创建 API Key
 authRoutes.post('/api-keys', authMiddleware, requireRole('admin'), async (c) => {
   const start = Date.now();
-  const body = await c.req.json<{ name: string; role: string; rateLimit?: number }>();
+  
+  let body: z.infer<typeof apiKeyCreateSchema>;
+  try {
+    body = apiKeyCreateSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid request body' },
+    }, 400);
+  }
   
   // 生成随机 Key
   const key = `aegis-${crypto.randomUUID().replace(/-/g, '').substring(0, 24)}`;
   
-  addApiKey(key, body.name, body.role, body.rateLimit || 100);
+  addApiKey(key, body.name, body.role, body.rateLimit);
   
   return c.json<ApiResponse<{ key: string; name: string; role: string }>>({
     success: true,

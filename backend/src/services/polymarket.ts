@@ -4,6 +4,7 @@
 
 import type { Market, Outcome } from '../core/types';
 import { cacheService } from './cache';
+import logger from '../utils/logger';
 
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
@@ -49,7 +50,7 @@ export class PolymarketService {
     this.apiKey = config.apiKey;
     this.apiSecret = config.apiSecret;
     this.apiPassphrase = config.apiPassphrase;
-    console.log('[Polymarket] API credentials configured');
+    logger.system.info('Polymarket API credentials configured');
   }
 
   isConfigured(): boolean {
@@ -91,7 +92,7 @@ export class PolymarketService {
     const cached = await cacheService.getCachedMarkets(params.tag);
     
     if (cached && cached.length > 0) {
-      console.log('[Polymarket] Returning cached markets');
+      logger.system.info('Polymarket returning cached markets');
       return {
         data: cached.slice(0, params.pageSize),
         total: cached.length
@@ -101,7 +102,7 @@ export class PolymarketService {
     try {
       // 如果配置了API密钥，使用真实API
       if (this.isConfigured()) {
-        console.log('[Polymarket] Fetching real data from API');
+        logger.system.info('Polymarket fetching real data from API');
         const offset = (params.page - 1) * params.pageSize;
         const url = new URL(`${GAMMA_API}/events`);
         url.searchParams.set('limit', params.pageSize.toString());
@@ -138,7 +139,7 @@ export class PolymarketService {
       }
       
       // 否则使用现有的公开API调用
-      console.log('[Polymarket] Using public API endpoint');
+      logger.system.info('Polymarket using public API endpoint');
       const offset = (params.page - 1) * params.pageSize;
       const url = new URL(`${GAMMA_API}/events`);
       url.searchParams.set('limit', params.pageSize.toString());
@@ -171,7 +172,7 @@ export class PolymarketService {
         total: markets.length * 10, // Estimate
       };
     } catch (error) {
-      console.error('[Polymarket] Failed to fetch markets:', error);
+      logger.system.error('Polymarket fetch markets failed', { error: (error as Error).message });
       
       // 在生产环境中应该抛出错误而不是返回 mock 数据
       // 这里为了演示暂时保留
@@ -184,6 +185,9 @@ export class PolymarketService {
   }
 
   async getMarketById(id: string): Promise<Market | null> {
+    const cached = await cacheService.getCachedMarket(id);
+    if (cached) return cached;
+
     await this.throttle();
 
     try {
@@ -195,9 +199,11 @@ export class PolymarketService {
       }
 
       const market: PolymarketMarket = await response.json();
-      return this.transformMarket(market);
+      const transformed = this.transformMarket(market);
+      await cacheService.setMarketCache(transformed);
+      return transformed;
     } catch (error) {
-      console.error('[Polymarket] Failed to fetch market:', error);
+      logger.system.error('Polymarket fetch market failed', { marketId: id, error: (error as Error).message });
       
       // 生产环境抛出错误
       if (process.env.NODE_ENV !== 'development') {
@@ -255,7 +261,7 @@ export class PolymarketService {
       if (!response.ok) throw new Error(`CLOB API error: ${response.status}`);
       return await response.json();
     } catch (error) {
-      console.error('[Polymarket] Failed to fetch order book:', error);
+      logger.trade.warn('[Polymarket] Failed to fetch order book', { error });
       return { bids: [], asks: [] };
     }
   }
@@ -285,7 +291,7 @@ export class PolymarketService {
     price: number;
   }): Promise<{ orderId: string; status: string } | null> {
     if (!this.isConfigured()) {
-      console.error('[Polymarket] API credentials not configured. Cannot place order.');
+      logger.trade.error('[Polymarket] API credentials not configured. Cannot place order.', { marketId: params.marketId });
       return null;
     }
 
@@ -297,7 +303,7 @@ export class PolymarketService {
       // 2. 生成 EIP-712 签名
       // 3. 通过 CLOB API 提交订单
 
-      console.log('[Polymarket] Order simulation:', params);
+      logger.trade.info('[Polymarket] Order simulation', { params });
       
       // 模拟订单响应
       return {
@@ -305,7 +311,7 @@ export class PolymarketService {
         status: 'SIMULATED',
       };
     } catch (error) {
-      console.error('[Polymarket] Failed to place order:', error);
+      logger.trade.error('[Polymarket] Failed to place order', { error });
       return null;
     }
   }
@@ -321,7 +327,7 @@ export class PolymarketService {
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       return await response.json();
     } catch (error) {
-      console.error('[Polymarket] Failed to fetch positions:', error);
+      logger.trade.error('[Polymarket] Failed to fetch positions', { error });
       return [];
     }
   }

@@ -1,18 +1,21 @@
-# AEGIS系统GitLab CI/CD配置
-# 自动构建Windows和macOS客户端，并发布到GitLab Releases
+# AEGIS Arbitrage System - GitLab CI/CD
+# Builds: backend/frontend Docker images + Electron desktop apps
 
 stages:
   - test
   - build
+  - docker
   - release
 
 variables:
-  NODE_VERSION: "20"
-  DESKTOP_DIR: "./new/desktop"
-  BACKEND_DIR: "./new/backend"
-  FRONTEND_DIR: "./new/frontend"
+  NODE_VERSION: "22"
+  DESKTOP_DIR: "./desktop"
+  BACKEND_DIR: "./backend"
+  FRONTEND_DIR: "./frontend"
+  DOCKER_REGISTRY: "${CI_REGISTRY}"
+  DOCKER_IMAGE_BACKEND: "${CI_REGISTRY_IMAGE}/backend"
+  DOCKER_IMAGE_FRONTEND: "${CI_REGISTRY_IMAGE}/frontend"
 
-# 缓存node_modules以加速构建
 cache:
   key:
     files:
@@ -21,7 +24,7 @@ cache:
     - node_modules/
     - .npm/
 
-# ==================== 测试阶段 ====================
+# ==================== Test Stage ====================
 
 test:backend:
   stage: test
@@ -49,7 +52,43 @@ test:frontend:
     - develop
     - merge_requests
 
-# ==================== 构建阶段 ====================
+# ==================== Docker Build Stage ====================
+
+docker:backend:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker build -t "${DOCKER_IMAGE_BACKEND}:${CI_COMMIT_SHORT_SHA}" -t "${DOCKER_IMAGE_BACKEND}:latest" -f Dockerfile.backend .
+    - docker push "${DOCKER_IMAGE_BACKEND}:${CI_COMMIT_SHORT_SHA}"
+    - docker push "${DOCKER_IMAGE_BACKEND}:latest"
+  only:
+    - main
+    - tags
+
+docker:frontend:
+  stage: docker
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker build -t "${DOCKER_IMAGE_FRONTEND}:${CI_COMMIT_SHORT_SHA}" -t "${DOCKER_IMAGE_FRONTEND}:latest" -f Dockerfile.frontend .
+    - docker push "${DOCKER_IMAGE_FRONTEND}:${CI_COMMIT_SHORT_SHA}"
+    - docker push "${DOCKER_IMAGE_FRONTEND}:latest"
+  only:
+    - main
+    - tags
+
+# ==================== Desktop Build Stage ====================
 
 build:windows:
   stage: build
@@ -57,8 +96,7 @@ build:windows:
     - windows
     - electron
   before_script:
-    - cd ${DESKTOP_DIR}
-    - npm ci
+    - cd ${DESKTOP_DIR} && npm ci
     - cd ../frontend && npm ci && npm run build
     - cd ../backend && npm ci
   script:
@@ -73,7 +111,6 @@ build:windows:
     expire_in: 7 days
   only:
     - tags
-    - main
 
 build:mac:
   stage: build
@@ -81,8 +118,7 @@ build:mac:
     - macos
     - electron
   before_script:
-    - cd ${DESKTOP_DIR}
-    - npm ci
+    - cd ${DESKTOP_DIR} && npm ci
     - cd ../frontend && npm ci && npm run build
     - cd ../backend && npm ci
   script:
@@ -97,75 +133,50 @@ build:mac:
     expire_in: 7 days
   only:
     - tags
-    - main
 
-# ==================== 发布阶段 ====================
+# ==================== Release Stage ====================
 
 release:gitlab:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
-    - build:windows
-    - build:mac
+    - docker:backend
+    - docker:frontend
   script:
     - echo "Creating GitLab Release for ${CI_COMMIT_TAG}"
   release:
     name: 'AEGIS v${CI_COMMIT_TAG}'
     description: |
-      ## AEGIS套利系统 v${CI_COMMIT_TAG}
+      ## AEGIS Arbitrage System v${CI_COMMIT_TAG}
       
-      ### 更新内容
-      ${CI_COMMIT_MESSAGE}
+      ### Docker Images
+      - Backend: `${DOCKER_IMAGE_BACKEND}:${CI_COMMIT_TAG}`
+      - Frontend: `${DOCKER_IMAGE_FRONTEND}:${CI_COMMIT_TAG}`
       
-      ### 下载安装
-      - **Windows用户**: 下载 `.exe` 安装包
-      - **macOS用户**: 下载 `.dmg` 安装包
+      ### Deploy
+      ```bash
+      docker compose pull && docker compose up -d
+      ```
       
-      ### 自动更新
-      已安装的客户端会自动检测到此更新，并提示您升级。
-      
-      ### 数据安全
-      升级不会丢失您的任何配置和历史数据。
-      
-      ---
-      构建时间: ${CI_PIPELINE_CREATED_AT}
-      提交哈希: ${CI_COMMIT_SHORT_SHA}
+      Build: ${CI_PIPELINE_CREATED_AT} | Commit: ${CI_COMMIT_SHORT_SHA}
     tag_name: '${CI_COMMIT_TAG}'
     ref: '${CI_COMMIT_SHA}'
-    assets:
-      links:
-        - name: 'Windows安装包'
-          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/AEGIS-Setup-${CI_COMMIT_TAG}.exe'
-          link_type: 'package'
-        - name: 'macOS安装包'
-          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/AEGIS-${CI_COMMIT_TAG}.dmg'
-          link_type: 'package'
-        - name: 'Windows更新文件'
-          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/latest.yml'
-          link_type: 'other'
-        - name: 'macOS更新文件'
-          url: '${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/${DESKTOP_DIR}/dist-electron/latest-mac.yml'
-          link_type: 'other'
   only:
     - tags
 
-# ==================== 手动触发构建 ====================
+# ==================== Manual Triggers ====================
 
-manual:build-all:
-  stage: build
+manual:deploy:
+  stage: release
   when: manual
+  image: docker:24
+  services:
+    - docker:24-dind
   script:
-    - echo "手动触发完整构建"
-    - cd ${DESKTOP_DIR}
-    - npm ci
-    - cd ../frontend && npm ci && npm run build
-    - cd ../backend && npm ci
-    - cd ${DESKTOP_DIR}
-    - npm run build:all
-  artifacts:
-    paths:
-      - ${DESKTOP_DIR}/dist-electron/
-    expire_in: 30 days
+    - echo "Deploying to production..."
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker pull "${DOCKER_IMAGE_BACKEND}:latest"
+    - docker pull "${DOCKER_IMAGE_FRONTEND}:latest"
+    # Add your deployment commands here (e.g. docker compose, kubectl, ssh)
   only:
     - main
-    - develop

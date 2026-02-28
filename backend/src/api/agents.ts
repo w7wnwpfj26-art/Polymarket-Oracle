@@ -3,8 +3,10 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { AgentStatus, AgentResponse, ApiResponse } from '../core/types';
 import { AgentManager } from '../agents/manager';
+import { agentToggleSchema } from './schemas';
 
 export const agentRoutes = new Hono();
 
@@ -64,7 +66,22 @@ agentRoutes.get('/:id', async (c) => {
 agentRoutes.post('/:id/toggle', async (c) => {
   const start = Date.now();
   const id = c.req.param('id');
-  const body = await c.req.json<{ enabled: boolean }>();
+  
+  let body: z.infer<typeof agentToggleSchema>;
+  try {
+    body = agentToggleSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => e.message).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid request body' },
+    }, 400);
+  }
   
   try {
     const agent = agentManager.toggleAgent(id, body.enabled);

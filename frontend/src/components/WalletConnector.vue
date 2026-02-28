@@ -185,108 +185,65 @@ onMounted(() => {
 
 <style scoped>
 .wallet-connector {
-  @apply bg-white/5 rounded-lg p-4 border border-white/10;
+  background: rgba(255,255,255,0.05);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(255,255,255,0.1);
 }
-
 .btn-wallet-connect {
-  @apply w-full py-3 px-4 bg-gradient-to-r from-cyber-neon to-green-400 
-         text-black font-bold rounded-lg flex items-center justify-center
-         hover:from-cyber-neon/80 hover:to-green-400/80
-         transition-all duration-200 disabled:opacity-50;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(to right, #00ff88, #4ade80);
+  color: black;
+  font-weight: bold;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
 }
-
+.btn-wallet-connect:disabled { opacity: 0.5; }
 .btn-secondary-small {
-  @apply py-1.5 px-3 bg-white/10 text-white text-sm rounded
-         hover:bg-white/20 transition-colors disabled:opacity-50;
+  padding: 0.375rem 0.75rem;
+  background: rgba(255,255,255,0.1);
+  color: white;
+  font-size: 0.875rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
 }
-
+.btn-secondary-small:hover { background: rgba(255,255,255,0.2); }
 .btn-danger-small {
-  @apply py-1.5 px-3 bg-red-500/20 text-red-400 text-sm rounded
-         hover:bg-red-500/30 transition-colors;
+  padding: 0.375rem 0.75rem;
+  background: rgba(239,68,68,0.2);
+  color: #f87171;
+  font-size: 0.875rem;
+  border-radius: 0.25rem;
+  border: none;
+  cursor: pointer;
 }
-
-.help-text {
-  @apply text-xs text-white/40 mt-2 text-center;
-}
-
-.connected-section {
-  @apply space-y-4;
-}
-
-.wallet-info {
-  @apply space-y-3;
-}
-
-.address-display {
-  @apply flex items-center justify-between;
-}
-
-.status-indicator {
-  @apply w-2 h-2 rounded-full;
-}
-
-.status-indicator.connected {
-  @apply bg-cyber-neon;
-}
-
-.chain-tag {
-  @apply text-xs px-2 py-1 bg-cyber-blue/20 text-cyber-blue rounded-full;
-}
-
-.balance-info {
-  @apply flex items-center gap-2 text-sm;
-}
-
-.balance-label {
-  @apply text-white/40;
-}
-
-.balance-amount {
-  @apply font-mono font-bold;
-}
-
-.wallet-actions {
-  @apply flex gap-2;
-}
-
-.authorization-status {
-  @apply pt-3 border-t border-white/10 space-y-1;
-}
-
-.auth-indicator {
-  @apply w-2 h-2 rounded-full;
-}
-
-.auth-indicator.authorized {
-  @apply bg-cyber-neon;
-}
-
-.auth-indicator.expired {
-  @apply bg-yellow-500;
-}
-
-.error-message {
-  @apply mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg
-         flex items-center gap-2 text-red-400 text-sm;
-}
-
-.error-icon {
-  @apply text-lg;
-}
-
-.close-error {
-  @apply ml-auto text-red-300 hover:text-white;
-}
-
-.spinner {
-  @apply w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin;
-}
-
-.spinner-small {
-  @apply w-3 h-3 border border-current border-t-transparent rounded-full animate-spin;
-}
-
-.wallet-icon {
-  @apply text-current;
-}
+.help-text { font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 0.5rem; text-align: center; }
+.connected-section { display: flex; flex-direction: column; gap: 1rem; }
+.wallet-info { display: flex; flex-direction: column; gap: 0.75rem; }
+.address-display { display: flex; align-items: center; justify-content: space-between; }
+.status-indicator { width: 0.5rem; height: 0.5rem; border-radius: 9999px; }
+.status-indicator.connected { background: #00ff88; }
+.chain-tag { font-size: 0.75rem; padding: 0.25rem 0.5rem; background: rgba(0,136,255,0.2); color: #0088ff; border-radius: 9999px; }
+.balance-info { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
+.balance-label { color: rgba(255,255,255,0.4); }
+.balance-amount { font-family: monospace; font-weight: bold; }
+.wallet-actions { display: flex; gap: 0.5rem; }
+.authorization-status { padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 0.25rem; }
+.auth-indicator { width: 0.5rem; height: 0.5rem; border-radius: 9999px; }
+.auth-indicator.authorized { background: #00ff88; }
+.auth-indicator.expired { background: #eab308; }
+.error-message { margin-top: 0.75rem; padding: 0.75rem; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 0.5rem; display: flex; align-items: center; gap: 0.5rem; color: #f87171; font-size: 0.875rem; }
+.error-icon { font-size: 1.125rem; }
+.close-error { margin-left: auto; color: #fca5a5; background: none; border: none; cursor: pointer; }
+.spinner { width: 1rem; height: 1rem; border: 2px solid rgba(0,0,0,0.3); border-top-color: black; border-radius: 50%; animation: spin 0.6s linear infinite; }
+.spinner-small { width: 0.75rem; height: 0.75rem; border: 1px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

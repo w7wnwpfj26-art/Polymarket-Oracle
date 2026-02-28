@@ -13,7 +13,7 @@
 ### 2. 配置方式
 
 #### 方式一：通过配置页面（推荐）
-1. 访问 http://192.168.5.195:3008/config
+1. 访问 http://localhost:3008/config（或你的前端地址）
 2. 找到 "🔮 Polymarket 对接" 部分
 3. 填入以下信息：
    - Wallet Address: 你的以太坊钱包地址
@@ -24,7 +24,7 @@
 
 #### 方式二：直接编辑配置文件
 ```bash
-nano /Users/wangqi/Documents/ai/polymarket/new/backend/data/config.json
+nano backend/data/config.json
 ```
 
 修改 `dataSources.polymarket` 部分：

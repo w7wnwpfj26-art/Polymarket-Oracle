@@ -7,15 +7,15 @@ import { ethers, Wallet, JsonRpcProvider, parseEther, formatEther } from 'ethers
 import { getConfig } from '../api/config';
 import logger from '../utils/logger';
 
-// Polygon network configuration
-const POLYGON_RPC = 'https://polygon-rpc.com';
-const POLYGON_CHAIN_ID = 137;
+// Polygon network configuration (configurable via env)
+const POLYGON_RPC = process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com';
+const POLYGON_CHAIN_ID = parseInt(process.env.POLYGON_CHAIN_ID || '137', 10);
 
-// Polymarket contract addresses (Polygon Mainnet)
+// Polymarket contract addresses (Polygon Mainnet, configurable via env)
 const CONTRACTS = {
-  USDC: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',  // USDC on Polygon
-  CTF_EXCHANGE: '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E', // Conditional Token Framework
-  NEG_RISK_CTF_EXCHANGE: '0xC5d563A36AE78145C45a50134d48A1215220f80a',
+  USDC: process.env.USDC_CONTRACT || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+  CTF_EXCHANGE: process.env.CTF_EXCHANGE_CONTRACT || '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E',
+  NEG_RISK_CTF_EXCHANGE: process.env.NEG_RISK_CTF_CONTRACT || '0xC5d563A36AE78145C45a50134d48A1215220f80a',
 };
 
 // ERC20 ABI (minimal)

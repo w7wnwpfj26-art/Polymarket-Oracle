@@ -3,12 +3,15 @@
  */
 
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { SystemConfig, ApiResponse } from '../core/types';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { configUpdateSchema } from './schemas';
+import logger from '../utils/logger';
 
-// 配置文件路径
+// 配置文件路径（config.json 被 gitignore，首次运行可复制 config.json.example）
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONFIG_FILE = join(__dirname, '../../data/config.json');
 
@@ -99,7 +102,7 @@ function loadConfig(): SystemConfig {
       return deepMerge(defaultConfig, saved);
     }
   } catch (e) {
-    console.warn('Failed to load config file, using defaults:', e);
+    logger.system.warn('Failed to load config file, using defaults', { error: e });
   }
   return { ...defaultConfig };
 }
@@ -112,9 +115,9 @@ function saveConfig(cfg: SystemConfig): void {
       mkdirSync(dir, { recursive: true });
     }
     writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
-    console.log('Config saved to', CONFIG_FILE);
+    logger.system.info('Config saved successfully', { path: CONFIG_FILE });
   } catch (e) {
-    console.error('Failed to save config:', e);
+    logger.system.error('Failed to save config', { error: e });
   }
 }
 
@@ -170,10 +173,25 @@ configRoutes.get('/', async (c) => {
 // Update configuration
 configRoutes.put('/', async (c) => {
   const start = Date.now();
-  const body = await c.req.json<Partial<SystemConfig>>();
+  
+  let body: z.infer<typeof configUpdateSchema>;
+  try {
+    body = configUpdateSchema.parse(await c.req.json());
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json<ApiResponse<null>>({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join('; ') },
+      }, 400);
+    }
+    return c.json<ApiResponse<null>>({
+      success: false,
+      error: { code: 'INVALID_REQUEST', message: 'Invalid request body' },
+    }, 400);
+  }
   
   // Deep merge configuration
-  config = deepMerge(config, body);
+  config = deepMerge(config, body as Partial<SystemConfig>);
   
   // 持久化到文件
   saveConfig(config);

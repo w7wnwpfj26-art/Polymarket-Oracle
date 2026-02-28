@@ -13,7 +13,7 @@ brew install node
 # 从 https://nodejs.org/ 下载安装
 
 # 2. 克隆仓库
-git clone http://121.41.231.194:10886/wangqi/aegis-arbitrage.git
+git clone https://github.com/YOUR_USERNAME/aegis-arbitrage.git
 cd aegis-arbitrage/new
 
 # 3. 安装所有依赖
@@ -61,7 +61,7 @@ git push origin main
 git push origin --tags
 
 # 4. 等待CI/CD构建完成（约15-20分钟）
-# 访问: http://121.41.231.194:10886/wangqi/aegis-arbitrage/-/pipelines
+# 访问: GitHub Actions 或 CI 面板
 ```
 
 ---
@@ -248,7 +248,7 @@ type %USERPROFILE%\AppData\Roaming\AEGIS Arbitrage\logs\main.log
 ## 🆘 获取帮助
 
 ### GitLab
-- 项目地址: http://121.41.231.194:10886/wangqi/aegis-arbitrage
+- 项目地址: https://github.com/YOUR_USERNAME/aegis-arbitrage
 - 提交Issue: 项目 → Issues → New Issue
 - 查看Wiki: 项目 → Wiki
 

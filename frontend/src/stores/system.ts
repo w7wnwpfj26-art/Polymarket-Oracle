@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { useApi } from '@/composables/useApi';
 import { useWebSocket } from '@/composables/useWebSocket';
 
@@ -26,8 +26,8 @@ interface SystemStatus {
 
 export const useSystemStore = defineStore('system', () => {
   const api = useApi();
-  const ws = useWebSocket('ws://localhost:7701'); // WebSocket端口
-  
+  const { isConnected: wsConnected, subscribe } = useWebSocket();
+
   // State
   const status = ref<SystemStatus | null>(null);
   const isLoading = ref(false);
@@ -48,7 +48,7 @@ export const useSystemStore = defineStore('system', () => {
   // Computed
   const isConnected = computed(() => status.value?.isRunning ?? false);
   const agentCount = computed(() => status.value?.agents.length ?? 0);
-  const onlineAgents = computed(() => 
+  const onlineAgents = computed(() =>
     status.value?.agents.filter(a => a.status === 'ONLINE').length ?? 0
   );
 
@@ -90,58 +90,52 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
-  // WebSocket消息处理器
-  const handleWsMessage = (message: any) => {
-    switch (message.type) {
-      case 'status':
-        status.value = message.data;
-        lastUpdate.value = new Date();
-        break;
-      case 'heartbeat':
-        // 心跳包，更新最后活动时间
-        if (status.value) {
-          status.value.lastScan = new Date().toISOString();
-        }
-        break;
-      case 'opportunity':
-        // 新机会发现
-        if (status.value) {
-          status.value.opportunitiesFound += 1;
-        }
-        break;
-      case 'trade':
-        // 交易更新
-        if (status.value) {
-          status.value.tradesExecuted += 1;
-          status.value.totalProfit += message.data.profit || 0;
-        }
-        break;
-      case 'error':
-        error.value = message.data?.message || 'Unknown error';
-        break;
-    }
-  };
-
   function initialize() {
-    // 初始获取一次状态
+    // Initial fetch
     fetchStatus();
     fetchDashboard();
-    
-    // 订阅WebSocket事件
-    ws.subscribe(['status', 'opportunity', 'trade']);
-    
-    // 监听WebSocket消息
-    ws.onMessage(handleWsMessage);
-    
-    // 降级：如果WebSocket连接失败，仍然使用轮询作为后备
+
+    // Subscribe to WebSocket events for real-time updates
+    subscribe('status', (msg) => {
+      status.value = msg.data;
+      lastUpdate.value = new Date();
+    });
+
+    subscribe('heartbeat', () => {
+      if (status.value) {
+        status.value.lastScan = new Date().toISOString();
+      }
+    });
+
+    subscribe('opportunity', (_msg) => {
+      if (status.value) {
+        status.value.opportunitiesFound += 1;
+      }
+    });
+
+    subscribe('trade', (msg) => {
+      if (status.value) {
+        status.value.tradesExecuted += 1;
+        status.value.totalProfit += msg.data?.profit || 0;
+      }
+    });
+
+    subscribe('error', (msg) => {
+      error.value = msg.data?.message || 'Unknown error';
+    });
+
+    subscribe('dashboard', (msg) => {
+      Object.assign(dashboardStats.value, msg.data);
+    });
+
+    // Fallback polling when WebSocket is disconnected
     const pollInterval = setInterval(() => {
-      if (!ws.isConnected.value) {
+      if (!wsConnected.value) {
         fetchStatus();
         fetchDashboard();
       }
-    }, 30000); // 30秒轮询一次作为后备
-    
-    // 清理函数
+    }, 30000);
+
     onUnmounted(() => {
       clearInterval(pollInterval);
     });
@@ -154,6 +148,7 @@ export const useSystemStore = defineStore('system', () => {
     lastUpdate,
     dashboardStats,
     isConnected,
+    wsConnected,
     agentCount,
     onlineAgents,
     fetchStatus,

@@ -80,7 +80,7 @@ ipcMain.handle('data:get-trade-history', ...)
 // 使用GitLab Generic Provider
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'http://121.41.231.194:10886/wangqi/aegis-arbitrage/-/releases/permalink/latest/downloads'
+  url: 'https://github.com/YOUR_USERNAME/aegis-arbitrage/releases'
 });
 ```
 
@@ -281,7 +281,7 @@ polymarket/new/
 #### 1. 首次设置
 ```bash
 # 克隆仓库
-git clone http://121.41.231.194:10886/wangqi/aegis-arbitrage.git
+git clone https://github.com/YOUR_USERNAME/aegis-arbitrage.git
 cd aegis-arbitrage/new
 
 # 安装依赖
@@ -319,7 +319,7 @@ git push origin --tags
 ```
 
 #### 5. 等待构建
-访问: http://121.41.231.194:10886/wangqi/aegis-arbitrage/-/pipelines
+访问: GitHub Actions 或 GitLab Pipelines
 
 ---
 
@@ -350,13 +350,12 @@ git push origin --tags
 
 **客户端** (`desktop/.env`):
 ```bash
-GITLAB_URL=http://121.41.231.194:10886
-GITLAB_PROJECT=wangqi/aegis-arbitrage
+UPDATE_URL=https://github.com/YOUR_USERNAME/aegis-arbitrage/releases
 ENCRYPTION_KEY=your-encryption-key
 NODE_ENV=development
 ```
 
-**GitLab CI/CD变量**:
+**CI/CD 变量** (GitHub Actions / GitLab):
 ```
 Settings → CI/CD → Variables
 - GITLAB_TOKEN: GitLab访问令牌
@@ -372,7 +371,7 @@ Settings → CI/CD → Variables
   "build": {
     "publish": {
       "provider": "generic",        // GitLab通用provider
-      "url": "http://121.41.231.194:10886/..."
+      "url": "https://github.com/YOUR_USERNAME/aegis-arbitrage/releases"
     }
   }
 }
@@ -500,7 +499,7 @@ Settings → CI/CD → Variables
 - [系统概览](./SYSTEM_OVERVIEW.md)
 
 ### GitLab
-- 项目: http://121.41.231.194:10886/wangqi/aegis-arbitrage
+- 项目: https://github.com/YOUR_USERNAME/aegis-arbitrage
 - Issues: 提交问题和建议
 - Wiki: 查看详细文档
 - Pipelines: 查看构建状态
